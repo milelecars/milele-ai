@@ -1,0 +1,42 @@
+name: Dubizzle daily scrape
+
+on:
+  schedule:
+    # 04:00 UTC = 08:00 Asia/Dubai (no DST)
+    - cron: "0 4 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DUBIZZLE_PROXY: ${{ secrets.DUBIZZLE_PROXY }}
+      DUBIZZLE_HEADLESS: "0"
+      DUBIZZLE_MAX_PAGES: "60"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system deps (xvfb)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright Chromium (with OS deps)
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run scraper under Xvfb
+        run: xvfb-run -a --server-args='-screen 0 1920x1080x24' python main.py --source dubizzle
