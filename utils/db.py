@@ -18,9 +18,48 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+from postgrest.exceptions import APIError
 from supabase import create_client, Client
+from tenacity import (
+    before_sleep_log, retry, retry_if_exception, stop_after_attempt,
+    wait_exponential,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Transient error retry — Supabase sits behind Cloudflare, which occasionally
+# returns 502/503/504 (esp. during long-running scrapes). A single bad gateway
+# must not kill a 30-minute run.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _is_transient(exc: BaseException) -> bool:
+    if not isinstance(exc, APIError):
+        return False
+    code_raw = getattr(exc, "code", None)
+    try:
+        code = int(code_raw)
+    except (TypeError, ValueError):
+        code = None
+    if code in (502, 503, 504):
+        return True
+    msg = str(exc)
+    return any(
+        s in msg for s in ("502 Bad Gateway", "503 Service", "504 Gateway Timeout")
+    )
+
+
+@retry(
+    retry=retry_if_exception(_is_transient),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=2, max=30),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
+def _safe_exec(builder):
+    """Execute a PostgREST query builder, retrying transient 5xx errors."""
+    return builder.execute()
 
 # Max keys stored in the specs JSONB column per listing
 SPECS_WHITELIST = {
@@ -122,18 +161,18 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     ext_ids = [l["external_id"] for l in listings]
     existing: dict = {}
     for chunk in _chunks(ext_ids, 100):
-        rows = (
+        rows = _safe_exec(
             client.table("car_listings")
             .select("id, external_id, content_hash")
             .eq("source", source)
             .in_("external_id", chunk)
-            .execute()
         )
         for r in (rows.data or []):
             existing[r["external_id"]] = r
 
     to_insert = []
     to_touch_ids = []  # only last_seen_at update needed
+    changed: list[tuple[str, dict, str]] = []  # (old_id, new_listing, old_hash)
 
     for raw in listings:
         ext_id = raw["external_id"]
@@ -150,29 +189,44 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             counts["new"] += 1
 
         elif existing[ext_id]["content_hash"] != new_hash:
-            old_id = existing[ext_id]["id"]
             listing["last_changed_at"] = now_iso
             listing["is_active"] = True
-            # Fetch old for diff (targeted columns only, not *)
-            old = (
-                client.table("car_listings")
-                .select("id,price_aed,mileage_km,description,seller_phone,color,condition,image_urls,area,emirate")
-                .eq("id", old_id)
-                .single()
-                .execute()
-            ).data
-            client.table("car_listings").update(listing).eq("id", old_id).execute()
-            changed_fields = _diff(old or {}, listing)
-            _log_change(client, old_id, "updated", existing[ext_id]["content_hash"], new_hash, changed_fields)
+            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
             counts["updated"] += 1
 
         else:
             to_touch_ids.append(existing[ext_id]["id"])
             counts["skipped"] += 1
 
+    # Batch-fetch old rows for every update in one query per chunk (not N+1).
+    old_rows: dict = {}
+    if changed:
+        changed_ids = [c[0] for c in changed]
+        for chunk in _chunks(changed_ids, 100):
+            rows = _safe_exec(
+                client.table("car_listings")
+                .select(
+                    "id,price_aed,mileage_km,description,seller_phone,"
+                    "color,condition,image_urls,area,emirate"
+                )
+                .in_("id", chunk)
+            )
+            for r in (rows.data or []):
+                old_rows[r["id"]] = r
+
+        logger.info(f"[{source}] upsert: applying {len(changed)} updates")
+        for old_id, listing, old_hash in changed:
+            _safe_exec(
+                client.table("car_listings").update(listing).eq("id", old_id)
+            )
+            changed_fields = _diff(old_rows.get(old_id, {}), listing)
+            _log_change(client, old_id, "updated", old_hash, listing["content_hash"], changed_fields)
+
     # Bulk insert all new listings
     if to_insert:
-        result = client.table("car_listings").insert(to_insert).execute()
+        result = _safe_exec(
+            client.table("car_listings").insert(to_insert)
+        )
         for row in (result.data or []):
             _log_change(client, row["id"], "created", None, row.get("content_hash"), {})
 
@@ -181,7 +235,11 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     # under PostgREST's URL length limit.
     if to_touch_ids:
         for chunk in _chunks(to_touch_ids, 150):
-            client.table("car_listings").update({"last_seen_at": now_iso}).in_("id", chunk).execute()
+            _safe_exec(
+                client.table("car_listings")
+                .update({"last_seen_at": now_iso})
+                .in_("id", chunk)
+            )
 
     return counts
 
@@ -203,13 +261,12 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
     offset = 0
 
     while True:
-        batch = (
+        batch = _safe_exec(
             client.table("car_listings")
             .select("id, external_id")
             .eq("source", source)
             .eq("is_active", True)
             .range(offset, offset + page_size - 1)
-            .execute()
         )
         rows = batch.data or []
         all_stored.extend(rows)
@@ -232,11 +289,13 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
     deleted = 0
     for chunk in _chunks(to_delete, 150):
         ids = [r["id"] for r in chunk]
-        client.table("car_listings").update({
-            "is_active": False,
-            "deleted_at": now,
-            "last_seen_at": now,
-        }).in_("id", ids).execute()
+        _safe_exec(
+            client.table("car_listings").update({
+                "is_active": False,
+                "deleted_at": now,
+                "last_seen_at": now,
+            }).in_("id", ids)
+        )
         for r in chunk:
             _log_change(client, r["id"], "deleted", None, None, {})
         deleted += len(chunk)
@@ -264,13 +323,12 @@ def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
     offset = 0
     page_size = 1000
     while True:
-        rows = (
+        rows = _safe_exec(
             client.table("car_listings")
             .select("external_id")
             .eq("source", source)
             .eq("is_active", True)
             .range(offset, offset + page_size - 1)
-            .execute()
         ).data or []
         if not rows:
             break
@@ -279,7 +337,7 @@ def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
             break
         offset += page_size
 
-    backfill_rows = (
+    backfill_rows = _safe_exec(
         client.table("car_listings")
         .select("external_id")
         .eq("source", source)
@@ -287,7 +345,6 @@ def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
         .is_("detail_scraped_at", "null")
         .order("first_seen_at")
         .limit(batch_size)
-        .execute()
     ).data or []
     backfill_ids = {r["external_id"] for r in backfill_rows}
 
@@ -300,16 +357,18 @@ def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
 def log_run(client: Client, source: str, status: str, counts: dict,
             duration: float, error: Optional[str] = None):
     try:
-        client.table("scrape_runs").insert({
-            "source": source,
-            "status": status,
-            "listings_found": counts.get("found", 0),
-            "listings_new": counts.get("new", 0),
-            "listings_updated": counts.get("updated", 0),
-            "listings_deleted": counts.get("deleted", 0),
-            "error_message": error[:2000] if error else None,
-            "duration_seconds": round(duration, 2),
-        }).execute()
+        _safe_exec(
+            client.table("scrape_runs").insert({
+                "source": source,
+                "status": status,
+                "listings_found": counts.get("found", 0),
+                "listings_new": counts.get("new", 0),
+                "listings_updated": counts.get("updated", 0),
+                "listings_deleted": counts.get("deleted", 0),
+                "error_message": error[:2000] if error else None,
+                "duration_seconds": round(duration, 2),
+            })
+        )
     except Exception as e:
         logger.error(f"Failed to write scrape_run log: {e}")
 
@@ -321,13 +380,15 @@ def log_run(client: Client, source: str, status: str, counts: dict,
 def _log_change(client: Client, listing_id: str, change_type: str,
                 old_hash: Optional[str], new_hash: Optional[str], changed_fields: dict):
     try:
-        client.table("car_listing_changes").insert({
-            "listing_id": listing_id,
-            "change_type": change_type,
-            "changed_fields": changed_fields or {},
-            "old_hash": old_hash,
-            "new_hash": new_hash,
-        }).execute()
+        _safe_exec(
+            client.table("car_listing_changes").insert({
+                "listing_id": listing_id,
+                "change_type": change_type,
+                "changed_fields": changed_fields or {},
+                "old_hash": old_hash,
+                "new_hash": new_hash,
+            })
+        )
     except Exception as e:
         logger.warning(f"Failed to log change for {listing_id}: {e}")
 
