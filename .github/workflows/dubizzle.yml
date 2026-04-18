@@ -40,3 +40,28 @@ jobs:
 
       - name: Run scraper under Xvfb
         run: xvfb-run -a --server-args='-screen 0 1920x1080x24' python main.py --source dubizzle
+
+      - name: Notify Telegram on workflow failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets not set — skipping alert"
+            exit 0
+          fi
+          TEXT="🚨 GitHub Actions job failed — dubizzle scrape
+          The job crashed before the Python notifier could fire.
+          Run: $RUN_URL
+
+          💡 Likely causes:
+          • A required secret is missing (SUPABASE_URL / SUPABASE_SERVICE_KEY).
+          • Playwright install step flaked — re-run the workflow once.
+          • Recent commit introduced a Python or YAML syntax error.
+          • Chromium/Xvfb deps failed to install — check the 'Install' steps."
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "disable_web_page_preview=true" > /dev/null

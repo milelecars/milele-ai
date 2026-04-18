@@ -118,17 +118,21 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     source = listings[0]["source"]
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Build lookup: external_id → {id, content_hash}
+    # Build lookup: external_id → {id, content_hash}.
+    # PostgREST passes `in.(...)` as a query string; at ~35 chars per 32-char
+    # hex ID the URL caps out well before 1000 IDs. Chunk to 100.
     ext_ids = [l["external_id"] for l in listings]
-    # Supabase 'in' filter handles up to 10k values fine
-    existing_rows = (
-        client.table("car_listings")
-        .select("id, external_id, content_hash")
-        .eq("source", source)
-        .in_("external_id", ext_ids)
-        .execute()
-    )
-    existing = {r["external_id"]: r for r in (existing_rows.data or [])}
+    existing: dict = {}
+    for chunk in _chunks(ext_ids, 100):
+        rows = (
+            client.table("car_listings")
+            .select("id, external_id, content_hash")
+            .eq("source", source)
+            .in_("external_id", chunk)
+            .execute()
+        )
+        for r in (rows.data or []):
+            existing[r["external_id"]] = r
 
     to_insert = []
     to_touch_ids = []  # only last_seen_at update needed
@@ -174,10 +178,11 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
         for row in (result.data or []):
             _log_change(client, row["id"], "created", None, row.get("content_hash"), {})
 
-    # Bulk touch unchanged listings (single UPDATE per batch via 'in')
+    # Bulk touch unchanged listings (single UPDATE per batch via 'in').
+    # UUIDs are ~39 chars once URL-encoded — cap at 150 per chunk to stay
+    # under PostgREST's URL length limit.
     if to_touch_ids:
-        # Supabase update+in — split into chunks of 500 to be safe
-        for chunk in _chunks(to_touch_ids, 500):
+        for chunk in _chunks(to_touch_ids, 150):
             client.table("car_listings").update({"last_seen_at": now_iso}).in_("id", chunk).execute()
 
     return counts
@@ -227,7 +232,7 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
         return 0
 
     deleted = 0
-    for chunk in _chunks(to_delete, 500):
+    for chunk in _chunks(to_delete, 150):
         ids = [r["id"] for r in chunk]
         client.table("car_listings").update({
             "is_active": False,

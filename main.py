@@ -113,6 +113,31 @@ def run_source(name: str, client, dry_run: bool) -> dict:
         return {"source": name, "status": "failed", "counts": counts, "error": error_msg}
 
 
+def _suggest_fix(source: str, status: str, error: Optional[str]) -> Optional[str]:
+    """Return a short suggested next action given a failed/partial run, or None."""
+    err = (error or "").lower()
+    if status == "failed":
+        if "supabase" in err and any(x in err for x in ("unauthorized", "401", "403", "jwt")):
+            return "Supabase auth — SUPABASE_SERVICE_KEY must be the service_role key (not anon)."
+        if "supabase" in err or "postgres" in err or "relation" in err:
+            return "DB error — verify schema matches schema.sql and Supabase project is up."
+        if "playwright" in err and ("executable" in err or "install" in err):
+            return "Chromium missing — CI must run `playwright install --with-deps chromium` before main.py."
+        if "timeout" in err or "timed out" in err:
+            return "Transient timeout — re-trigger the workflow once."
+        if "telegram" in err:
+            return "Ignore: delivery itself had an issue."
+        return "See the full error above and the run logs."
+    if status == "partial":
+        if source == "dubizzle":
+            return (
+                "Imperva likely blocked every retry. Add DUBIZZLE_PROXY "
+                "(UAE residential, e.g. IPRoyal PAYG ~$2/GB) as a repo secret."
+            )
+        return "Site returned 0 listings. Possible layout change or rate-limit — check scraper logs."
+    return None
+
+
 def _build_notification(results: list[dict]) -> tuple[str, bool]:
     """Build a per-run summary. Returns (text, has_issues)."""
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -139,6 +164,9 @@ def _build_notification(results: list[dict]) -> tuple[str, bool]:
                 f"new={c.get('new', 0)} updated={c.get('updated', 0)} "
                 f"deleted={c.get('deleted', 0)}"
             )
+        fix = _suggest_fix(source, status, r.get("error"))
+        if fix:
+            lines.append(f"💡 Fix: {fix}")
     return "\n".join(lines), has_issues
 
 
