@@ -113,6 +113,28 @@ CREATE INDEX IF NOT EXISTS idx_changes_changed_at      ON car_listing_changes(ch
 CREATE INDEX IF NOT EXISTS idx_changes_type            ON car_listing_changes(change_type);
 
 -- ============================================================
+-- MIGRATION: detail-page enrichment columns
+-- (idempotent — safe to re-run)
+-- ============================================================
+ALTER TABLE car_listings
+    ADD COLUMN IF NOT EXISTS trim                    TEXT,
+    ADD COLUMN IF NOT EXISTS horsepower_text         TEXT,
+    ADD COLUMN IF NOT EXISTS engine_capacity_cc_text TEXT,
+    ADD COLUMN IF NOT EXISTS seating_capacity_text   TEXT,
+    ADD COLUMN IF NOT EXISTS interior_color          TEXT,
+    ADD COLUMN IF NOT EXISTS target_market           TEXT,
+    ADD COLUMN IF NOT EXISTS warranty                BOOLEAN,
+    ADD COLUMN IF NOT EXISTS posted_at               DATE,
+    ADD COLUMN IF NOT EXISTS features                JSONB   DEFAULT '{}',
+    ADD COLUMN IF NOT EXISTS dealer_name             TEXT,
+    ADD COLUMN IF NOT EXISTS dealer_logo_url         TEXT,
+    ADD COLUMN IF NOT EXISTS detail_scraped_at       TIMESTAMPTZ;
+
+-- Supports the incremental backfill query (oldest unscraped first).
+CREATE INDEX IF NOT EXISTS idx_listings_detail_backfill
+    ON car_listings(source, detail_scraped_at NULLS FIRST, first_seen_at);
+
+-- ============================================================
 -- RLS
 -- ============================================================
 ALTER TABLE car_listings         ENABLE ROW LEVEL SECURITY;

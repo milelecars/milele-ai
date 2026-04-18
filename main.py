@@ -14,6 +14,10 @@ Env vars:
     ALERT_WEBHOOK_URL       optional — POST failure summary to this URL (Slack/Teams/etc)
     TELEGRAM_BOT_TOKEN      optional — send daily summary to Telegram (pair with _CHAT_ID)
     TELEGRAM_CHAT_ID        optional — recipient chat for Telegram summary
+    DUBIZZLE_DETAIL_BATCH_SIZE
+                            optional — max detail-page fetches per run for
+                            Dubizzle (default 100). Controls how fast the
+                            initial ~900-listing backfill completes.
 """
 
 import argparse
@@ -36,7 +40,9 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 
 import requests as _requests
 
-from utils.db import get_client, upsert_listings, soft_delete_missing, log_run
+from utils.db import (
+    get_client, upsert_listings, soft_delete_missing, log_run, get_detail_plan,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -75,7 +81,33 @@ def run_source(name: str, client, dry_run: bool) -> dict:
 
     try:
         scraper = load_scraper(name)
-        listings = scraper.run()
+
+        # Build a detail-scrape plan for scrapers that support per-listing
+        # detail enrichment. Only runs on real (non-dry) runs so we have a DB.
+        detail_plan = None
+        if client and not dry_run and getattr(scraper, "SUPPORTS_DETAIL", False):
+            try:
+                batch_size = int(
+                    os.environ.get(f"{name.upper()}_DETAIL_BATCH_SIZE", "100")
+                )
+            except ValueError:
+                batch_size = 100
+            try:
+                detail_plan = get_detail_plan(client, name, batch_size=batch_size)
+                detail_plan["batch_size"] = batch_size
+                logger.info(
+                    f"[{name}] detail plan — known={len(detail_plan['known_external_ids'])}, "
+                    f"backfill_queued={len(detail_plan['backfill_external_ids'])}, "
+                    f"batch={batch_size}"
+                )
+            except Exception as e:
+                logger.warning(f"[{name}] detail plan failed ({e}); list-only run")
+                detail_plan = None
+
+        if detail_plan is not None:
+            listings = scraper.run(detail_plan=detail_plan)
+        else:
+            listings = scraper.run()
         counts["found"] = len(listings)
 
         if dry_run:

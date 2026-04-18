@@ -44,18 +44,16 @@ def get_client(url: str, key: str) -> Client:
 # Hash
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Fields included in the change-detection hash.
+# Kept list-level only (fields reliably present on every scrape, with or without
+# detail enrichment) so detail-scrape vs list-scrape of the same listing
+# produces identical hashes and doesn't flap the `updated` counter.
+HASH_FIELDS = ("price_aed", "price_aed_max", "mileage_km")
+
+
 def compute_hash(listing: dict) -> str:
-    """MD5 of fields that signal a meaningful change."""
-    fields = [
-        listing.get("price_aed"),
-        listing.get("price_aed_max"),
-        listing.get("mileage_km"),
-        listing.get("description"),
-        listing.get("seller_phone"),
-        # Sort image list so reordering doesn't trigger a spurious update
-        sorted(listing.get("image_urls") or []),
-        listing.get("is_active"),
-    ]
+    """MD5 of list-level fields that signal a meaningful commercial change."""
+    fields = [listing.get(f) for f in HASH_FIELDS]
     raw = json.dumps(fields, sort_keys=True, default=str)
     return hashlib.md5(raw.encode()).hexdigest()
 
@@ -249,6 +247,55 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
 # ─────────────────────────────────────────────────────────────────────────────
 # Run logging
 # ─────────────────────────────────────────────────────────────────────────────
+
+def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
+    """
+    Build the per-run detail-scrape plan for a source.
+
+    Returns:
+        known_external_ids:    set of all active external_ids already in DB.
+                               Used by the scraper to tell "new" listings apart
+                               from ones we've seen before.
+        backfill_external_ids: up to `batch_size` active listings with no
+                               detail_scraped_at, oldest-seen first. These are
+                               the next slice of the backfill queue.
+    """
+    known: set[str] = set()
+    offset = 0
+    page_size = 1000
+    while True:
+        rows = (
+            client.table("car_listings")
+            .select("external_id")
+            .eq("source", source)
+            .eq("is_active", True)
+            .range(offset, offset + page_size - 1)
+            .execute()
+        ).data or []
+        if not rows:
+            break
+        known.update(r["external_id"] for r in rows)
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    backfill_rows = (
+        client.table("car_listings")
+        .select("external_id")
+        .eq("source", source)
+        .eq("is_active", True)
+        .is_("detail_scraped_at", "null")
+        .order("first_seen_at")
+        .limit(batch_size)
+        .execute()
+    ).data or []
+    backfill_ids = {r["external_id"] for r in backfill_rows}
+
+    return {
+        "known_external_ids": known,
+        "backfill_external_ids": backfill_ids,
+    }
+
 
 def log_run(client: Client, source: str, status: str, counts: dict,
             duration: float, error: Optional[str] = None):

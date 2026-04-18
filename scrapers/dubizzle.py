@@ -32,6 +32,7 @@ import os
 import random
 import re
 import time
+from datetime import date, datetime, timezone
 from typing import Generator, Optional
 from urllib.parse import urlparse
 
@@ -87,6 +88,152 @@ _BLOCK_TITLE = "Pardon Our Interruption"
 _BLOCK_DOM_SELECTOR = "#interstitial-inprogress"
 
 
+# JS extractor for the detail page. Runs in the browser context, returns a
+# JSON-serialisable dict: overview k/v, features by category, all images, and
+# title/description/location/dealer.
+_DETAIL_JS = r"""
+() => {
+  const text = (sel) => {
+    const el = document.querySelector(sel);
+    return el ? el.textContent.trim() : null;
+  };
+
+  // Overview: every element like <... data-testid="overview-<key>-value">
+  const overview = {};
+  document.querySelectorAll('[data-testid^="overview-"][data-testid$="-value"]')
+    .forEach(el => {
+      const k = el.getAttribute('data-testid')
+                   .replace(/^overview-/, '').replace(/-value$/, '');
+      overview[k] = el.textContent.trim();
+    });
+
+  // Features: 4 accordion sections. For each, find the accordion container,
+  // then gather all rendered feature strings under it. Clicking "See more"
+  // before calling this (done from Python) reveals collapsed items.
+  const features = {};
+  const cats = [
+    'driver_assistance_and_safety',
+    'entertainment_and_technology',
+    'comfort_and_convenience',
+    'exterior_features',
+  ];
+  for (const cat of cats) {
+    const label = document.querySelector(`[data-testid="details-label-${cat}"]`);
+    if (!label) continue;
+    const accordion = label.closest('.MuiPaper-root') ||
+                      label.closest('[class*="Accordion"]') ||
+                      label.parentElement;
+    const scope = accordion || document;
+    const nodes = scope.querySelectorAll(
+      '[data-testid^="feature-item-value-"] .MuiListItemText-primary, ' +
+      '[data-testid^="feature-item-value-"] span'
+    );
+    const seen = new Set();
+    const out = [];
+    for (const n of nodes) {
+      const t = (n.textContent || '').trim();
+      if (t && !seen.has(t)) { seen.add(t); out.push(t); }
+    }
+    features[cat] = out;
+  }
+
+  // Images: dedupe all <img> tags pointing at the dbz-images CDN.
+  // Skip dealer profile logos and any non-listing images.
+  const imgs = [];
+  const seenImg = new Set();
+  document.querySelectorAll('img[src*="dbz-images.dubizzle.com/images/"]')
+    .forEach(el => {
+      const s = el.getAttribute('src') || '';
+      if (!s) return;
+      if (s.includes('/profiles/')) return;
+      const base = s.split('?')[0];
+      if (seenImg.has(base)) return;
+      seenImg.add(base);
+      imgs.push(s);
+    });
+
+  // Also try __NEXT_DATA__ for the full gallery (usually has 10-20 photos).
+  try {
+    const nd = document.getElementById('__NEXT_DATA__');
+    if (nd) {
+      const data = JSON.parse(nd.textContent);
+      const walk = (obj, depth) => {
+        if (!obj || depth > 8) return;
+        if (Array.isArray(obj)) { obj.forEach(v => walk(v, depth + 1)); return; }
+        if (typeof obj !== 'object') return;
+        for (const [key, val] of Object.entries(obj)) {
+          if ((key === 'photos' || key === 'images' || key === 'gallery')
+              && Array.isArray(val)) {
+            for (const p of val) {
+              const u = typeof p === 'string'
+                ? p
+                : (p && (p.url || p.contentUrl || p.src)) || null;
+              if (u && u.includes('dbz-images.dubizzle.com')) {
+                const base = u.split('?')[0];
+                if (!seenImg.has(base)) { seenImg.add(base); imgs.push(u); }
+              }
+            }
+          }
+          walk(val, depth + 1);
+        }
+      };
+      walk(data, 0);
+    }
+  } catch (e) {}
+
+  const dealerLogoEl = document.querySelector('[data-testid="logo"] img');
+
+  return {
+    overview,
+    features,
+    images: imgs,
+    title: text('[data-testid="listing-name"]'),
+    description: text('[data-testid="description"]'),
+    postedOn: text('[data-testid="posted-on"]'),
+    locationText: text('[data-testid="listing-location-map"]'),
+    dealerName: text('[data-testid="name"]'),
+    dealerLogoUrl: dealerLogoEl ? (dealerLogoEl.getAttribute('src') || null) : null,
+  };
+}
+"""
+
+_POSTED_ON_RE = re.compile(
+    r"(\d{1,2})\s*(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})"
+)
+_MONTHS = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+
+def _parse_posted_on(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    m = _POSTED_ON_RE.search(raw)
+    if not m:
+        return None
+    day, month_name, year = m.group(1), m.group(2).lower(), m.group(3)
+    month = _MONTHS.get(month_name)
+    if not month:
+        return None
+    try:
+        return date(int(year), month, int(day)).isoformat()
+    except Exception:
+        return None
+
+
+def _yesno_to_bool(raw: Optional[str]) -> Optional[bool]:
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if s in ("yes", "y", "true", "1"):
+        return True
+    if s in ("no", "n", "false", "0"):
+        return False
+    return None
+
+
 def _parse_proxy(url: str) -> Optional[dict]:
     """Convert 'scheme://user:pass@host:port' into Playwright's proxy dict."""
     if not url:
@@ -111,6 +258,7 @@ class DubizzleScraper(BaseScraper):
     SOURCE = "dubizzle"
     BASE_URL = "https://uae.dubizzle.com"
     APIFY_ACTOR_ID = None
+    SUPPORTS_DETAIL = True
 
     def listing_urls(self) -> Generator[str, None, None]:
         return iter([])
@@ -166,7 +314,7 @@ class DubizzleScraper(BaseScraper):
                 return
             page.wait_for_timeout(random.randint(500, 1200))
 
-    def run(self) -> list[dict]:
+    def run(self, detail_plan: Optional[dict] = None, **_) -> list[dict]:
         try:
             from playwright.sync_api import sync_playwright
             from playwright_stealth import Stealth
@@ -285,6 +433,9 @@ class DubizzleScraper(BaseScraper):
                             f"[dubizzle] page {page_num} had only duplicates — stopping"
                         )
                         break
+
+                if detail_plan and results:
+                    self._enrich_with_detail(page, results, detail_plan)
             finally:
                 try:
                     browser.close()
@@ -293,6 +444,148 @@ class DubizzleScraper(BaseScraper):
 
         logger.info(f"[dubizzle] complete — {len(results)} unique listings")
         return results
+
+    # ── Detail enrichment ───────────────────────────────────────────────────
+
+    def _enrich_with_detail(self, page, results: list[dict], plan: dict):
+        known = plan.get("known_external_ids") or set()
+        backfill = plan.get("backfill_external_ids") or set()
+        try:
+            batch_size = int(plan.get("batch_size") or 100)
+        except (TypeError, ValueError):
+            batch_size = 100
+
+        new_ids = {r["external_id"] for r in results} - known
+        # Prioritise new > backfill, cap to batch_size.
+        ordered_ids: list[str] = list(new_ids)
+        ordered_ids += [rid for rid in backfill if rid not in new_ids]
+        ordered_ids = ordered_ids[:batch_size]
+        to_detail = set(ordered_ids)
+
+        if not to_detail:
+            logger.info(f"[{self.SOURCE}] detail: nothing to enrich this run")
+        else:
+            n_new = len(new_ids & to_detail)
+            n_backfill = len(to_detail) - n_new
+            logger.info(
+                f"[{self.SOURCE}] detail: enriching {len(to_detail)} "
+                f"(new={n_new}, backfill={n_backfill})"
+            )
+
+        by_id = {r["external_id"]: r for r in results}
+        succeeded: set[str] = set()
+        for i, ext_id in enumerate(ordered_ids, 1):
+            listing = by_id.get(ext_id)
+            if not listing or not listing.get("url"):
+                continue
+            detail = self._fetch_detail(page, listing["url"])
+            if detail:
+                for k, v in detail.items():
+                    # Skip None / empty container so list-level fallbacks aren't
+                    # clobbered on fields detail couldn't resolve.
+                    if v is None or v == {} or v == []:
+                        continue
+                    listing[k] = v
+                listing["detail_scraped_at"] = datetime.now(timezone.utc).isoformat()
+                succeeded.add(ext_id)
+                logger.info(
+                    f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✓ {ext_id}"
+                )
+            else:
+                logger.warning(
+                    f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✗ {ext_id}"
+                )
+            self._human_wait(page, 2_000, 5_000)
+
+        # For known-but-not-enriched-this-run listings, drop list-level fields
+        # that would otherwise overwrite the richer detail data stored in DB
+        # from a previous run.
+        for r in results:
+            if r["external_id"] in known and r["external_id"] not in succeeded:
+                r.pop("image_urls", None)
+                r.pop("description", None)
+
+    def _fetch_detail(self, page, url: str) -> Optional[dict]:
+        try:
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            except Exception as e:
+                logger.warning(f"[{self.SOURCE}] detail goto failed {url}: {e}")
+                return None
+
+            self._human_wait(page, 4_000, 8_000)
+
+            if self._is_blocked(page):
+                logger.warning(f"[{self.SOURCE}] detail blocked: {url}")
+                return None
+
+            # Expand all collapsed accordions + click every "See more" toggle
+            # so all feature items materialise in the DOM before we extract.
+            try:
+                page.evaluate(
+                    "() => document.querySelectorAll("
+                    "'[role=\"button\"][aria-expanded=\"false\"]').forEach(b => b.click())"
+                )
+                page.wait_for_timeout(500)
+                page.evaluate(
+                    "() => document.querySelectorAll("
+                    "'[data-testid=\"feature-toggle\"]').forEach(b => b.click())"
+                )
+                page.wait_for_timeout(400)
+            except Exception:
+                pass
+
+            raw = page.evaluate(_DETAIL_JS)
+            if not raw:
+                return None
+            return self._normalise_detail(raw)
+        except Exception as e:
+            logger.warning(f"[{self.SOURCE}] detail parse failed for {url}: {e}")
+            return None
+
+    def _normalise_detail(self, raw: dict) -> dict:
+        overview = raw.get("overview") or {}
+
+        images = self._normalise_detail_images(raw.get("images") or [])
+
+        return {
+            "trim": self._pick_str(overview.get("motors_trim")),
+            "horsepower_text": self._pick_str(overview.get("horsepower")),
+            "engine_capacity_cc_text": self._pick_str(overview.get("engine_capacity_cc")),
+            "seating_capacity_text": self._pick_str(overview.get("seating_capacity")),
+            "interior_color": self._pick_str(overview.get("interior_color")),
+            "target_market": self._pick_str(overview.get("target_market")),
+            "warranty": _yesno_to_bool(overview.get("warranty")),
+            "posted_at": _parse_posted_on(raw.get("postedOn")),
+            "features": raw.get("features") or {},
+            "dealer_name": self._pick_str(raw.get("dealerName")),
+            "dealer_logo_url": self._pick_str(raw.get("dealerLogoUrl")),
+            "image_urls": images,
+            "description": self._pick_str(raw.get("description")),
+            "body_type": self._pick_str(overview.get("body_type")),
+            "fuel_type": self._pick_str(overview.get("fuel_type")),
+            "cylinders": self.clean_int(overview.get("no_of_cylinders")),
+            "doors": self.clean_int(overview.get("doors")),
+            "area": self._pick_str(raw.get("locationText")),
+        }
+
+    @staticmethod
+    def _normalise_detail_images(urls: list) -> list[str]:
+        """Dedupe + prefer the `impolicy=dpv` CDN size (better for Telegram)."""
+        seen: set[str] = set()
+        out: list[str] = []
+        for u in urls:
+            if not isinstance(u, str) or not u.startswith("http"):
+                continue
+            # Normalise CDN size policy: prefer 'dpv' (larger) over 'carousel'.
+            if "impolicy=" in u:
+                u = re.sub(r"impolicy=[^&]+", "impolicy=dpv", u)
+            base = u.split("?")[0]
+            if base in seen:
+                continue
+            seen.add(base)
+            out.append(u)
+        return out[:20]
 
     def _normalise(self, wrapper: dict) -> Optional[dict]:
         try:
