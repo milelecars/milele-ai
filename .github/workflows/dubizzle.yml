@@ -4,12 +4,19 @@ on:
   schedule:
     # 04:00 UTC = 08:00 Asia/Dubai (no DST)
     - cron: "0 4 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      detail_batch_size:
+        description: "Max detail-page fetches this run (default 100). Set to 1000 to finish the backfill in one shot (~2 hrs)."
+        required: false
+        default: "100"
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Normal runs finish in ~30 min; one-shot backfill with batch=1000 takes
+    # ~2 hrs. 180 min is safety ceiling; finishing earlier is free.
+    timeout-minutes: 180
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -18,6 +25,7 @@ jobs:
       DUBIZZLE_PROXY: ${{ secrets.DUBIZZLE_PROXY }}
       DUBIZZLE_HEADLESS: "0"
       DUBIZZLE_MAX_PAGES: "60"
+      DUBIZZLE_DETAIL_BATCH_SIZE: ${{ inputs.detail_batch_size || '100' }}
       PYTHONUNBUFFERED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
