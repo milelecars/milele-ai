@@ -104,10 +104,15 @@ def run_source(name: str, client, dry_run: bool) -> dict:
                 logger.warning(f"[{name}] detail plan failed ({e}); list-only run")
                 detail_plan = None
 
+        run_kwargs: dict = {}
         if detail_plan is not None:
-            listings = scraper.run(detail_plan=detail_plan)
-        else:
-            listings = scraper.run()
+            run_kwargs["detail_plan"] = detail_plan
+        if client and not dry_run:
+            # Give the scraper the DB client so it can incrementally persist
+            # list data (after list scrape) and detail data (per listing).
+            # Limits data loss if the run crashes mid-way.
+            run_kwargs["db_client"] = client
+        listings = scraper.run(**run_kwargs)
         counts["found"] = len(listings)
 
         if dry_run:
@@ -121,8 +126,18 @@ def run_source(name: str, client, dry_run: bool) -> dict:
             log_run(client, name, "partial", counts, time.time() - start, "0 listings scraped")
             return {"source": name, "status": "partial", "counts": counts}
 
-        upsert_counts = upsert_listings(client, listings)
-        counts.update(upsert_counts)
+        # If the scraper already did an intermediate upsert (incremental
+        # persistence for crash safety), reuse those counts. Otherwise run
+        # the upsert now. The final pass is still important when present —
+        # incremental-enrichment DB updates change detail fields only, not
+        # list-level fields that might have shifted during this run.
+        intermediate = getattr(scraper, "_intermediate_upsert_counts", None)
+        if intermediate is not None:
+            counts.update(intermediate)
+            logger.info(f"{name}: using intermediate upsert counts {intermediate}")
+        else:
+            upsert_counts = upsert_listings(client, listings)
+            counts.update(upsert_counts)
 
         live_ids = {l["external_id"] for l in listings}
         counts["deleted"] = soft_delete_missing(client, name, live_ids)

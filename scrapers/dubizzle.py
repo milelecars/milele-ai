@@ -314,7 +314,12 @@ class DubizzleScraper(BaseScraper):
                 return
             page.wait_for_timeout(random.randint(500, 1200))
 
-    def run(self, detail_plan: Optional[dict] = None, **_) -> list[dict]:
+    def run(
+        self,
+        detail_plan: Optional[dict] = None,
+        db_client=None,
+        **_,
+    ) -> list[dict]:
         try:
             from playwright.sync_api import sync_playwright
             from playwright_stealth import Stealth
@@ -434,8 +439,29 @@ class DubizzleScraper(BaseScraper):
                         )
                         break
 
+                # Intermediate commit: persist list-level data for every
+                # listing BEFORE the long detail phase so that a crash during
+                # enrichment can't destroy list-scrape results.
+                if db_client and results:
+                    try:
+                        from utils.db import upsert_listings
+                        self._intermediate_upsert_counts = upsert_listings(
+                            db_client, results
+                        )
+                        logger.info(
+                            f"[{self.SOURCE}] intermediate list upsert: "
+                            f"{self._intermediate_upsert_counts}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self.SOURCE}] intermediate upsert failed ({e}); "
+                            f"new listings at risk if detail phase crashes"
+                        )
+
                 if detail_plan and results:
-                    self._enrich_with_detail(page, results, detail_plan)
+                    self._enrich_with_detail(
+                        page, results, detail_plan, db_client=db_client
+                    )
             finally:
                 try:
                     browser.close()
@@ -447,7 +473,13 @@ class DubizzleScraper(BaseScraper):
 
     # ── Detail enrichment ───────────────────────────────────────────────────
 
-    def _enrich_with_detail(self, page, results: list[dict], plan: dict):
+    def _enrich_with_detail(
+        self,
+        page,
+        results: list[dict],
+        plan: dict,
+        db_client=None,
+    ):
         known = plan.get("known_external_ids") or set()
         backfill = plan.get("backfill_external_ids") or set()
         try:
@@ -488,6 +520,22 @@ class DubizzleScraper(BaseScraper):
                     listing[k] = v
                 listing["detail_scraped_at"] = datetime.now(timezone.utc).isoformat()
                 succeeded.add(ext_id)
+
+                # Commit this listing's detail to the DB NOW. If the run
+                # crashes on any later listing, everything successful so far
+                # is already persisted. Non-fatal on error.
+                if db_client:
+                    try:
+                        from utils.db import update_detail_fields
+                        update_detail_fields(
+                            db_client, self.SOURCE, ext_id, detail
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self.SOURCE}] incremental commit failed "
+                            f"for {ext_id}: {e}"
+                        )
+
                 logger.info(
                     f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✓ {ext_id}"
                 )

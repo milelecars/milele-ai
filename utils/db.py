@@ -377,6 +377,56 @@ def log_run(client: Client, source: str, status: str, counts: dict,
 # Internals
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Columns written by the detail-page scrape. Kept here (not in the scraper)
+# so update_detail_fields can filter incoming dicts safely.
+DETAIL_FIELDS: frozenset = frozenset({
+    "trim", "horsepower_text", "engine_capacity_cc_text",
+    "seating_capacity_text", "interior_color", "target_market",
+    "warranty", "posted_at", "features",
+    "dealer_name", "dealer_logo_url",
+    "image_urls", "description",
+    "body_type", "fuel_type", "cylinders", "doors", "area",
+})
+
+
+def update_detail_fields(
+    client: Client, source: str, external_id: str, fields: dict,
+) -> bool:
+    """
+    Write just the detail-enrichment fields for ONE listing, identified by
+    (source, external_id). Called incrementally during detail scraping so
+    data isn't lost if the run crashes later. Non-fatal on error: logs and
+    returns False so the caller can keep enriching the remaining listings.
+    """
+    if not fields:
+        return False
+
+    patch = {
+        k: v for k, v in fields.items()
+        if k in DETAIL_FIELDS and v is not None and v != {} and v != []
+    }
+    if not patch:
+        return False
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    patch["detail_scraped_at"] = now_iso
+    patch["last_seen_at"] = now_iso
+
+    try:
+        _safe_exec(
+            client.table("car_listings")
+            .update(patch)
+            .eq("source", source)
+            .eq("external_id", external_id)
+        )
+        return True
+    except Exception as e:
+        logger.warning(
+            f"[{source}] incremental detail commit failed for {external_id}: {e}"
+        )
+        return False
+
+
 def _log_change(client: Client, listing_id: str, change_type: str,
                 old_hash: Optional[str], new_hash: Optional[str], changed_fields: dict):
     try:
