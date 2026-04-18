@@ -19,6 +19,7 @@ jobs:
       DUBIZZLE_HEADLESS: "0"
       DUBIZZLE_MAX_PAGES: "60"
       PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
     steps:
       - uses: actions/checkout@v4
 
