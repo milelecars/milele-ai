@@ -22,6 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sanity check — confirm checkout has the chunking fix
+        run: |
+          echo "HEAD: $(git log -1 --oneline)"
+          echo "--- utils/db.py lines 120-135 ---"
+          sed -n '120,135p' utils/db.py
+          echo "---"
+          if ! grep -q "for chunk in _chunks(ext_ids" utils/db.py; then
+            echo "ERROR: chunking fix missing from this checkout — aborting before scrape" >&2
+            exit 1
+          fi
+          echo "Chunking fix present — proceeding."
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
