@@ -24,6 +24,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 # Ensure the project root is on sys.path regardless of how/where this script
 # is invoked (python main.py, IDE run button, absolute path, etc.)
