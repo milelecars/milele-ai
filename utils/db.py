@@ -194,6 +194,14 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
             counts["updated"] += 1
 
+        elif listing.get("detail_scraped_at"):
+            # List-level hash matches, but detail was freshly scraped this
+            # run. Route through the per-row update path so detail fields
+            # persist (the bulk-touch path only writes last_seen_at).
+            listing["is_active"] = True
+            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
+            counts["updated"] += 1
+
         else:
             to_touch_ids.append(existing[ext_id]["id"])
             counts["skipped"] += 1

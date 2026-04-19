@@ -511,38 +511,48 @@ class DubizzleScraper(BaseScraper):
             if not listing or not listing.get("url"):
                 continue
             detail = self._fetch_detail(page, listing["url"])
+
+            # Distinguish "fetch failed" (None) from "fetch returned an empty
+            # extraction" (dict full of Nones). Both are unusable; the second
+            # used to falsely log as ✓ and silently drop data.
+            meaningful = {}
             if detail:
-                for k, v in detail.items():
-                    # Skip None / empty container so list-level fallbacks aren't
-                    # clobbered on fields detail couldn't resolve.
-                    if v is None or v == {} or v == []:
-                        continue
-                    listing[k] = v
-                listing["detail_scraped_at"] = datetime.now(timezone.utc).isoformat()
-                succeeded.add(ext_id)
+                meaningful = {
+                    k: v for k, v in detail.items()
+                    if v is not None and v != {} and v != []
+                }
 
-                # Commit this listing's detail to the DB NOW. If the run
-                # crashes on any later listing, everything successful so far
-                # is already persisted. Non-fatal on error.
-                if db_client:
-                    try:
-                        from utils.db import update_detail_fields
-                        update_detail_fields(
-                            db_client, self.SOURCE, ext_id, detail
-                        )
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.SOURCE}] incremental commit failed "
-                            f"for {ext_id}: {e}"
-                        )
-
-                logger.info(
-                    f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✓ {ext_id}"
-                )
-            else:
+            if not meaningful:
                 logger.warning(
-                    f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✗ {ext_id}"
+                    f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✗ {ext_id} "
+                    f"(fetch empty — extractor found nothing meaningful)"
                 )
+                self._human_wait(page, 2_000, 5_000)
+                continue
+
+            for k, v in meaningful.items():
+                listing[k] = v
+            listing["detail_scraped_at"] = datetime.now(timezone.utc).isoformat()
+            succeeded.add(ext_id)
+
+            # Incremental commit. Non-fatal on error.
+            wrote = False
+            if db_client:
+                try:
+                    from utils.db import update_detail_fields
+                    wrote = update_detail_fields(
+                        db_client, self.SOURCE, ext_id, meaningful
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{self.SOURCE}] incremental commit failed "
+                        f"for {ext_id}: {e}"
+                    )
+
+            logger.info(
+                f"[{self.SOURCE}] detail {i}/{len(to_detail)} ✓ {ext_id} "
+                f"(fields={len(meaningful)}, persisted={wrote})"
+            )
             self._human_wait(page, 2_000, 5_000)
 
         # For known-but-not-enriched-this-run listings, drop list-level fields

@@ -126,18 +126,12 @@ def run_source(name: str, client, dry_run: bool) -> dict:
             log_run(client, name, "partial", counts, time.time() - start, "0 listings scraped")
             return {"source": name, "status": "partial", "counts": counts}
 
-        # If the scraper already did an intermediate upsert (incremental
-        # persistence for crash safety), reuse those counts. Otherwise run
-        # the upsert now. The final pass is still important when present —
-        # incremental-enrichment DB updates change detail fields only, not
-        # list-level fields that might have shifted during this run.
-        intermediate = getattr(scraper, "_intermediate_upsert_counts", None)
-        if intermediate is not None:
-            counts.update(intermediate)
-            logger.info(f"{name}: using intermediate upsert counts {intermediate}")
-        else:
-            upsert_counts = upsert_listings(client, listings)
-            counts.update(upsert_counts)
+        # Always run the final upsert. It's idempotent with the scraper's
+        # intermediate upsert + incremental-detail commits, but also catches
+        # any detail fields that weren't persisted mid-run (e.g. if
+        # update_detail_fields was skipped due to an earlier edge case).
+        upsert_counts = upsert_listings(client, listings)
+        counts.update(upsert_counts)
 
         live_ids = {l["external_id"] for l in listings}
         counts["deleted"] = soft_delete_missing(client, name, live_ids)
