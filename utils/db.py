@@ -362,6 +362,143 @@ def get_detail_plan(client: Client, source: str, batch_size: int = 100) -> dict:
     }
 
 
+def build_change_digest(
+    client: Client,
+    source: str,
+    since_iso: str,
+    limit_per_section: int = 15,
+) -> str:
+    """Human-readable summary of every car_listing_changes row written since
+    `since_iso`, grouped by change type, restricted to `source`. Returns an
+    empty string if no changes. Designed to be appended to the Telegram
+    summary so the sales team can cross-check each diff against the website.
+    """
+    try:
+        changes = _safe_exec(
+            client.table("car_listing_changes")
+            .select("listing_id, change_type, changed_fields, changed_at")
+            .gte("changed_at", since_iso)
+            .order("changed_at")
+        ).data or []
+    except Exception as e:
+        logger.warning(f"[{source}] change digest query failed: {e}")
+        return ""
+
+    if not changes:
+        return ""
+
+    # Resolve listing_id → listing info (chunked to stay under URL limits).
+    listing_ids = list({c["listing_id"] for c in changes})
+    listings: dict = {}
+    for chunk in _chunks(listing_ids, 100):
+        try:
+            rows = _safe_exec(
+                client.table("car_listings")
+                .select("id, external_id, url, make, model, year, "
+                        "price_aed, emirate, area, trim")
+                .in_("id", chunk)
+                .eq("source", source)
+            ).data or []
+            for r in rows:
+                listings[r["id"]] = r
+        except Exception as e:
+            logger.warning(f"[{source}] digest listing lookup failed: {e}")
+
+    # Drop changes whose listing isn't from this source (or was hard-deleted).
+    changes = [c for c in changes if c["listing_id"] in listings]
+    if not changes:
+        return ""
+
+    def _header(l: dict) -> str:
+        parts = []
+        if l.get("year"):
+            parts.append(str(l["year"]))
+        if l.get("make"):
+            parts.append(str(l["make"]).title())
+        if l.get("model"):
+            parts.append(str(l["model"]))
+        if l.get("trim"):
+            parts.append(l["trim"])
+        return " ".join(parts) or "Listing"
+
+    def _loc(l: dict) -> str:
+        return ", ".join(x for x in (l.get("area"), l.get("emirate")) if x)
+
+    def _money(v) -> str:
+        try:
+            return f"AED {int(float(v)):,}"
+        except (TypeError, ValueError):
+            return "AED ?"
+
+    def _fmt_new(c: dict) -> str:
+        l = listings[c["listing_id"]]
+        bits = [f"• {_header(l)}"]
+        if l.get("price_aed") is not None:
+            bits.append(_money(l["price_aed"]))
+        loc = _loc(l)
+        if loc:
+            bits.append(f"({loc})")
+        line = " ".join(bits)
+        if l.get("url"):
+            line += f"\n  {l['url']}"
+        return line
+
+    def _fmt_update(c: dict) -> str:
+        l = listings[c["listing_id"]]
+        cf = c.get("changed_fields") or {}
+        line = f"• {_header(l)}"
+        if "price_aed" in cf:
+            old = cf["price_aed"].get("old")
+            new = cf["price_aed"].get("new")
+            try:
+                pct = (float(new) - float(old)) / float(old) * 100
+                line += f": {_money(old)} → {_money(new)} ({pct:+.1f}%)"
+            except (TypeError, ValueError, ZeroDivisionError):
+                line += f": {_money(old)} → {_money(new)}"
+        elif "mileage_km" in cf:
+            old = cf["mileage_km"].get("old") or 0
+            new = cf["mileage_km"].get("new") or 0
+            line += f": {int(old):,} km → {int(new):,} km"
+        elif cf:
+            line += f": {', '.join(sorted(cf.keys()))} changed"
+        if l.get("url"):
+            line += f"\n  {l['url']}"
+        return line
+
+    def _fmt_delete(c: dict) -> str:
+        l = listings[c["listing_id"]]
+        bits = [f"• {_header(l)}"]
+        if l.get("price_aed") is not None:
+            bits.append(f"(was {_money(l['price_aed'])})")
+        line = " ".join(bits)
+        if l.get("url"):
+            line += f"\n  {l['url']}"
+        return line
+
+    news    = [c for c in changes if c["change_type"] == "created"]
+    updates = [c for c in changes if c["change_type"] == "updated"]
+    deletes = [c for c in changes if c["change_type"] == "deleted"]
+
+    sections: list[str] = []
+    if news:
+        lines = [_fmt_new(c) for c in news[:limit_per_section]]
+        if len(news) > limit_per_section:
+            lines.append(f"  …and {len(news) - limit_per_section} more")
+        sections.append(f"🆕 {len(news)} new:\n" + "\n".join(lines))
+    if updates:
+        lines = [_fmt_update(c) for c in updates[:limit_per_section]]
+        if len(updates) > limit_per_section:
+            lines.append(f"  …and {len(updates) - limit_per_section} more")
+        sections.append(f"💰 {len(updates)} updated:\n" + "\n".join(lines))
+    if deletes:
+        lines = [_fmt_delete(c) for c in deletes[:limit_per_section]]
+        if len(deletes) > limit_per_section:
+            lines.append(f"  …and {len(deletes) - limit_per_section} more")
+        sections.append(f"❌ {len(deletes)} delisted:\n" + "\n".join(lines))
+
+    return "\n\n".join(sections)
+
+
 def log_run(client: Client, source: str, status: str, counts: dict,
             duration: float, error: Optional[str] = None):
     try:

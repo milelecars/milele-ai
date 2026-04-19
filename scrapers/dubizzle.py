@@ -16,9 +16,10 @@ Anti-detection layers applied:
 Env vars:
     DUBIZZLE_HEADLESS      "1" to run headless (default: 0 — visible browser
                            has a higher success rate against Imperva).
-    DUBIZZLE_MAX_PAGES     pagination cap (default: 60).
-    DUBIZZLE_SEARCH_URL    override search URL (default: new cars, 2015+,
-                           price 1..100000 AED).
+    DUBIZZLE_MAX_PAGES     pagination cap per segment (default: 60).
+    DUBIZZLE_SEARCH_SEGMENTS  pipe-separated full URLs to union-scrape
+                           (default: 4 price buckets covering 1..100000 AED).
+    DUBIZZLE_SEARCH_URL    single URL override (debug; bypasses segmentation).
     DUBIZZLE_PROXY         residential proxy URL for this scraper only,
                            e.g. http://user:pass@gate.provider.com:22225.
     SCRAPER_PROXY          project-wide proxy fallback if DUBIZZLE_PROXY unset.
@@ -41,11 +42,37 @@ from utils.base_scraper import BaseScraper
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_SEARCH_URL = (
-    "https://uae.dubizzle.com/motors/new-cars/"
-    "?price__lte=100000&price__gte=1"
-    "&year__gte=2015&year__lte=2027"
+# Dubizzle caps HTTP pagination at ~36 pages (~936 listings) per search,
+# regardless of the result-count shown in the UI. We split by price into
+# non-overlapping buckets so each bucket stays under the cap, then union
+# the results. Buckets are inclusive on both bounds; 25000 lands in bucket 1,
+# 25001 in bucket 2, etc.
+_UAE_NEW_CARS = "https://uae.dubizzle.com/motors/new-cars/"
+_YEAR_RANGE = "year__gte=2015&year__lte=2027"
+
+DEFAULT_SEARCH_SEGMENTS: tuple[str, ...] = (
+    f"{_UAE_NEW_CARS}?price__gte=1&price__lte=25000&{_YEAR_RANGE}",
+    f"{_UAE_NEW_CARS}?price__gte=25001&price__lte=50000&{_YEAR_RANGE}",
+    f"{_UAE_NEW_CARS}?price__gte=50001&price__lte=75000&{_YEAR_RANGE}",
+    f"{_UAE_NEW_CARS}?price__gte=75001&price__lte=100000&{_YEAR_RANGE}",
 )
+
+
+def _resolve_segments() -> list[str]:
+    """Resolve the search URLs for this run. Precedence:
+    1. DUBIZZLE_SEARCH_SEGMENTS  (pipe-separated list of full URLs)
+    2. DUBIZZLE_SEARCH_URL       (single URL — legacy/debug)
+    3. DEFAULT_SEARCH_SEGMENTS   (4 price buckets)
+    """
+    raw = os.environ.get("DUBIZZLE_SEARCH_SEGMENTS")
+    if raw:
+        segs = [s.strip() for s in raw.split("|") if s.strip()]
+        if segs:
+            return segs
+    single = os.environ.get("DUBIZZLE_SEARCH_URL")
+    if single:
+        return [single]
+    return list(DEFAULT_SEARCH_SEGMENTS)
 
 _LISTINGS_JS = """
 () => {
@@ -277,7 +304,23 @@ class DubizzleScraper(BaseScraper):
         }
         if proxy_dict:
             kwargs["proxy"] = proxy_dict
-        return browser.new_context(**kwargs)
+        ctx = browser.new_context(**kwargs)
+        # Block heavy resources — we extract from HTML/JSON-LD only, so image
+        # bytes, fonts and media add nothing. Image URLs stay in the DOM; we
+        # just don't download the pixels. Cuts bandwidth ~70% and page load
+        # time 2-3×, which also reduces the scraper-looking request cadence.
+        # Stylesheets are kept: some Next.js hydration depends on them.
+        if os.environ.get("DUBIZZLE_BLOCK_HEAVY", "1") != "0":
+            _BLOCKED_TYPES = {"image", "media", "font"}
+            ctx.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if route.request.resource_type in _BLOCKED_TYPES
+                    else route.continue_()
+                ),
+            )
+        return ctx
 
     def _is_blocked(self, page) -> bool:
         try:
@@ -335,7 +378,7 @@ class DubizzleScraper(BaseScraper):
             max_pages = int(os.environ.get("DUBIZZLE_MAX_PAGES", "60"))
         except ValueError:
             max_pages = 60
-        search_url = os.environ.get("DUBIZZLE_SEARCH_URL") or DEFAULT_SEARCH_URL
+        segments = _resolve_segments()
         proxy_url = (
             os.environ.get("DUBIZZLE_PROXY")
             or os.environ.get("SCRAPER_PROXY")
@@ -345,7 +388,8 @@ class DubizzleScraper(BaseScraper):
 
         logger.info(
             f"[dubizzle] Playwright run — headless={headless}, "
-            f"max_pages={max_pages}, proxy={'yes' if proxy_dict else 'no'}"
+            f"max_pages={max_pages}/segment, segments={len(segments)}, "
+            f"proxy={'yes' if proxy_dict else 'no'}"
         )
 
         results: list[dict] = []
@@ -392,52 +436,64 @@ class DubizzleScraper(BaseScraper):
                 return False
 
             try:
-                logger.info("[dubizzle] Loading page 1")
-                if not load_page(search_url, cold=True):
-                    logger.error(
-                        "[dubizzle] could not bypass Imperva on page 1 after "
-                        f"{self.MAX_BLOCK_RETRIES} attempts — aborting"
-                    )
-                    return []
+                for seg_i, search_url in enumerate(segments, 1):
+                    seg_tag = f"seg {seg_i}/{len(segments)}"
+                    logger.info(f"[dubizzle] {seg_tag} page 1 — {search_url}")
+                    if not load_page(search_url, cold=True):
+                        logger.error(
+                            f"[dubizzle] {seg_tag}: could not bypass Imperva on "
+                            f"page 1 after {self.MAX_BLOCK_RETRIES} attempts — "
+                            f"skipping this segment"
+                        )
+                        continue
 
-                for page_num in range(1, max_pages + 1):
-                    if page_num > 1:
-                        next_url = f"{search_url}&page={page_num}"
-                        logger.info(f"[dubizzle] Loading page {page_num}")
-                        if not load_page(next_url, cold=False):
-                            logger.warning(
-                                f"[dubizzle] gave up on page {page_num} "
-                                f"after {self.MAX_BLOCK_RETRIES} block retries"
+                    seg_new = 0
+                    for page_num in range(1, max_pages + 1):
+                        if page_num > 1:
+                            next_url = f"{search_url}&page={page_num}"
+                            logger.info(f"[dubizzle] {seg_tag} page {page_num}")
+                            if not load_page(next_url, cold=False):
+                                logger.warning(
+                                    f"[dubizzle] {seg_tag} gave up on page {page_num}"
+                                )
+                                break
+                            self._scroll_like_human(page)
+
+                        items = page.evaluate(_LISTINGS_JS) or []
+                        logger.info(
+                            f"[dubizzle] {seg_tag} page {page_num}: {len(items)} items"
+                        )
+
+                        if not items:
+                            logger.info(
+                                f"[dubizzle] {seg_tag} page {page_num} empty — "
+                                f"end of segment ({seg_new} new in segment)"
                             )
                             break
-                        self._scroll_like_human(page)
 
-                    items = page.evaluate(_LISTINGS_JS) or []
-                    logger.info(f"[dubizzle] page {page_num}: {len(items)} items")
+                        new_on_page = 0
+                        for wrapper in items:
+                            listing = self._normalise(wrapper)
+                            if not listing:
+                                continue
+                            ext = listing["external_id"]
+                            if ext in seen_ids:
+                                continue
+                            seen_ids.add(ext)
+                            results.append(listing)
+                            new_on_page += 1
+                            seg_new += 1
 
-                    if not items:
-                        logger.warning(
-                            f"[dubizzle] page {page_num} returned 0 items — stopping"
-                        )
-                        break
-
-                    new_on_page = 0
-                    for wrapper in items:
-                        listing = self._normalise(wrapper)
-                        if not listing:
-                            continue
-                        ext = listing["external_id"]
-                        if ext in seen_ids:
-                            continue
-                        seen_ids.add(ext)
-                        results.append(listing)
-                        new_on_page += 1
-
-                    if new_on_page == 0:
-                        logger.info(
-                            f"[dubizzle] page {page_num} had only duplicates — stopping"
-                        )
-                        break
+                        if new_on_page == 0:
+                            logger.info(
+                                f"[dubizzle] {seg_tag} page {page_num} all-duplicates — "
+                                f"end of segment ({seg_new} new in segment)"
+                            )
+                            break
+                    logger.info(
+                        f"[dubizzle] {seg_tag} done: +{seg_new} listings "
+                        f"(total unique so far: {len(results)})"
+                    )
 
                 # Intermediate commit: persist list-level data for every
                 # listing BEFORE the long detail phase so that a crash during

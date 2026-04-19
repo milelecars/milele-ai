@@ -41,7 +41,8 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 import requests as _requests
 
 from utils.db import (
-    get_client, upsert_listings, soft_delete_missing, log_run, get_detail_plan,
+    get_client, upsert_listings, soft_delete_missing, log_run,
+    get_detail_plan, build_change_digest,
 )
 
 logging.basicConfig(
@@ -75,6 +76,7 @@ def run_source(name: str, client, dry_run: bool) -> dict:
     """Run one source. Returns result summary dict."""
     logger.info(f"{'[DRY RUN] ' if dry_run else ''}▶ {name}")
     start = time.time()
+    run_start_iso = datetime.now(timezone.utc).isoformat()
     counts = {"found": 0, "new": 0, "updated": 0, "skipped": 0, "deleted": 0}
     status = "success"
     error_msg = None
@@ -94,11 +96,20 @@ def run_source(name: str, client, dry_run: bool) -> dict:
                 batch_size = 100
             try:
                 detail_plan = get_detail_plan(client, name, batch_size=batch_size)
+                # Backfill is opt-in. On cron-style change-detection runs we
+                # only want new listings enriched; old un-enriched rows stay in
+                # the queue to be handled by a manual local backfill job.
+                backfill_on = os.environ.get(
+                    f"{name.upper()}_DETAIL_BACKFILL", "1"
+                ) != "0"
+                if not backfill_on:
+                    detail_plan["backfill_external_ids"] = set()
                 detail_plan["batch_size"] = batch_size
                 logger.info(
-                    f"[{name}] detail plan — known={len(detail_plan['known_external_ids'])}, "
+                    f"[{name}] detail plan — "
+                    f"known={len(detail_plan['known_external_ids'])}, "
                     f"backfill_queued={len(detail_plan['backfill_external_ids'])}, "
-                    f"batch={batch_size}"
+                    f"batch={batch_size}, backfill={'on' if backfill_on else 'off'}"
                 )
             except Exception as e:
                 logger.warning(f"[{name}] detail plan failed ({e}); list-only run")
@@ -143,7 +154,21 @@ def run_source(name: str, client, dry_run: bool) -> dict:
             f"unchanged={counts['skipped']} deleted={counts['deleted']}"
         )
         log_run(client, name, "success", counts, duration)
-        return {"source": name, "status": "success", "counts": counts}
+
+        # Build a per-change digest from rows written to car_listing_changes
+        # during this run. Non-fatal on failure — we still return success.
+        try:
+            digest = build_change_digest(client, name, run_start_iso)
+        except Exception as e:
+            logger.warning(f"[{name}] change digest build failed: {e}")
+            digest = ""
+
+        return {
+            "source": name,
+            "status": "success",
+            "counts": counts,
+            "digest": digest,
+        }
 
     except Exception as e:
         duration = time.time() - start
@@ -209,6 +234,10 @@ def _build_notification(results: list[dict]) -> tuple[str, bool]:
         fix = _suggest_fix(source, status, r.get("error"))
         if fix:
             lines.append(f"💡 Fix: {fix}")
+        digest = r.get("digest")
+        if digest:
+            lines.append("")
+            lines.append(digest)
     return "\n".join(lines), has_issues
 
 

@@ -2,14 +2,22 @@ name: Dubizzle daily scrape
 
 on:
   schedule:
-    # 04:00 UTC = 08:00 Asia/Dubai (no DST)
+    # 04:00 UTC = 08:00 Asia/Dubai  — morning delta check
     - cron: "0 4 * * *"
+    # 10:00 UTC = 14:00 Asia/Dubai  — afternoon delta check
+    - cron: "0 10 * * *"
   workflow_dispatch:
     inputs:
       detail_batch_size:
-        description: "Max detail-page fetches this run (default 100). Set to 1000 to finish the backfill in one shot (~2 hrs)."
+        description: "Max detail-page fetches this run (default 100). Bump higher + enable backfill for one-shot runs."
         required: false
         default: "100"
+      enable_backfill:
+        description: "Also drain the un-detail-scraped backfill queue (off on cron runs by default)."
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
 
 jobs:
   scrape:
@@ -26,6 +34,10 @@ jobs:
       DUBIZZLE_HEADLESS: "0"
       DUBIZZLE_MAX_PAGES: "60"
       DUBIZZLE_DETAIL_BATCH_SIZE: ${{ inputs.detail_batch_size || '100' }}
+      # Cron runs do change-detection only (new listings still get detail).
+      # Manual workflow_dispatch can flip enable_backfill=true to drain the
+      # un-detail-scraped queue in one shot.
+      DUBIZZLE_DETAIL_BACKFILL: ${{ inputs.enable_backfill == 'true' && '1' || '0' }}
       PYTHONUNBUFFERED: "1"
       PYTHONDONTWRITEBYTECODE: "1"
     steps:
