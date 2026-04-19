@@ -460,7 +460,10 @@ class DubizzleScraper(BaseScraper):
 
                 if detail_plan and results:
                     self._enrich_with_detail(
-                        page, results, detail_plan, db_client=db_client
+                        page, results, detail_plan,
+                        db_client=db_client,
+                        browser=browser,
+                        proxy_dict=proxy_dict,
                     )
             finally:
                 try:
@@ -473,12 +476,36 @@ class DubizzleScraper(BaseScraper):
 
     # ── Detail enrichment ───────────────────────────────────────────────────
 
+    def _rotate_detail_context(self, page, browser, proxy_dict, reason: str,
+                                cooldown: tuple = (15, 35)):
+        """Close the current context, wait, open a fresh one and warm it up.
+        Returns the new page. No-op if browser isn't provided."""
+        if browser is None:
+            return page
+        logger.info(f"[{self.SOURCE}] detail rotation: {reason}")
+        try:
+            page.context.close()
+        except Exception:
+            pass
+        lo, hi = cooldown
+        time.sleep(random.uniform(lo, hi))
+        ctx = self._new_context(browser, proxy_dict)
+        new_page = ctx.new_page()
+        try:
+            new_page.goto(self.BASE_URL, wait_until="domcontentloaded", timeout=45_000)
+            self._human_wait(new_page, 5_000, 10_000)
+        except Exception as e:
+            logger.warning(f"[{self.SOURCE}] detail warmup error: {e}")
+        return new_page
+
     def _enrich_with_detail(
         self,
         page,
         results: list[dict],
         plan: dict,
         db_client=None,
+        browser=None,
+        proxy_dict=None,
     ):
         known = plan.get("known_external_ids") or set()
         backfill = plan.get("backfill_external_ids") or set()
@@ -496,21 +523,57 @@ class DubizzleScraper(BaseScraper):
 
         if not to_detail:
             logger.info(f"[{self.SOURCE}] detail: nothing to enrich this run")
-        else:
-            n_new = len(new_ids & to_detail)
-            n_backfill = len(to_detail) - n_new
-            logger.info(
-                f"[{self.SOURCE}] detail: enriching {len(to_detail)} "
-                f"(new={n_new}, backfill={n_backfill})"
-            )
+            return
+        n_new = len(new_ids & to_detail)
+        n_backfill = len(to_detail) - n_new
+        logger.info(
+            f"[{self.SOURCE}] detail: enriching {len(to_detail)} "
+            f"(new={n_new}, backfill={n_backfill})"
+        )
+
+        # Rotate context *before* detail phase. The list-scrape session has
+        # a footprint Imperva may tag as "search-heavy crawler"; a fresh
+        # context makes the detail traffic look like a new visitor.
+        page = self._rotate_detail_context(
+            page, browser, proxy_dict,
+            reason="fresh session before detail phase",
+            cooldown=(5, 15),
+        )
+
+        try:
+            rotate_every = int(os.environ.get("DUBIZZLE_DETAIL_ROTATE_EVERY", "25"))
+        except ValueError:
+            rotate_every = 25
 
         by_id = {r["external_id"]: r for r in results}
         succeeded: set[str] = set()
+        consecutive_blocks = 0
         for i, ext_id in enumerate(ordered_ids, 1):
+            # Periodic rotation so Imperva can't build up a per-session fingerprint.
+            if i > 1 and (i - 1) % rotate_every == 0:
+                page = self._rotate_detail_context(
+                    page, browser, proxy_dict,
+                    reason=f"periodic rotation at {i}/{len(to_detail)}",
+                )
+                consecutive_blocks = 0
+
             listing = by_id.get(ext_id)
             if not listing or not listing.get("url"):
                 continue
             detail = self._fetch_detail(page, listing["url"])
+
+            # Detect sustained blocking → force an earlier rotation.
+            if detail is None:
+                consecutive_blocks += 1
+                if consecutive_blocks >= 5:
+                    page = self._rotate_detail_context(
+                        page, browser, proxy_dict,
+                        reason=f"{consecutive_blocks} consecutive blocks",
+                        cooldown=(30, 60),
+                    )
+                    consecutive_blocks = 0
+            else:
+                consecutive_blocks = 0
 
             # Distinguish "fetch failed" (None) from "fetch returned an empty
             # extraction" (dict full of Nones). Both are unusable; the second
