@@ -146,12 +146,44 @@ def extract_filters(user_text: str) -> dict:
 # DB query
 # ────────────────────────────────────────────────────────────────────────────
 
+def _sanitise_or_value(v: str) -> str:
+    """PostgREST .or_() takes a comma-separated list of clauses, so any
+    commas or parens inside a value would break the parser. Strip them."""
+    return str(v).replace(",", " ").replace("(", " ").replace(")", " ").strip()
+
+
+# Text-like fields where a value reliably lives in ONE column.
+_SINGLE_COLUMN_TEXT = {
+    "make", "model", "trim", "variant",
+    "body_type", "fuel_type", "transmission",
+    "target_market", "horsepower_text",
+    "engine_capacity_cc_text", "seating_capacity_text",
+    "condition", "emirate", "area", "seller_type", "dealer_name",
+    "interior_color",
+}
+
+# Fields where the user's intent could match any of several columns.
+_MULTI_COLUMN_TEXT = {
+    "color": ("color", "interior_color", "description"),
+}
+
+
 def apply_filters(query, filters: dict):
     """Apply a validated filter dict to a PostgREST query builder."""
     for k, v in filters.items():
         if v is None or v == "":
             continue
-        if k in TEXT_FIELDS:
+        if k in _MULTI_COLUMN_TEXT:
+            val = _sanitise_or_value(v)
+            if not val:
+                continue
+            # Example for color='white':
+            #   or=(color.ilike.*white*,interior_color.ilike.*white*,description.ilike.*white*)
+            clauses = ",".join(
+                f"{col}.ilike.*{val}*" for col in _MULTI_COLUMN_TEXT[k]
+            )
+            query = query.or_(clauses)
+        elif k in TEXT_FIELDS:
             query = query.ilike(k, f"%{v}%")
         elif k in INT_FIELDS:
             try:
