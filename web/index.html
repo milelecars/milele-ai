@@ -547,7 +547,7 @@
           <dl id="modal-colors"></dl>
         </section>
         <section>
-          <h3>Location & Dealer</h3>
+          <h3>Contact & Location</h3>
           <dl id="modal-dealer"></dl>
         </section>
         <section id="modal-features-section" class="modal-section-full" hidden>
@@ -733,19 +733,12 @@ function renderCard(row) {
   const imgs = (row.image_urls || []).filter(
     u => typeof u === "string" && u.startsWith("http")
   );
-  const title = [
-    row.year, row.make, row.model, row.trim,
-  ].filter(Boolean).join(" ");
+  // Card-level fields only: make, model, year + fuel + interior color.
+  // Keep it light — everything else lives in the modal.
+  const title = [row.year, row.make, row.model].filter(Boolean).join(" ");
   const specs = [];
-  if (row.mileage_km != null && row.mileage_km > 0)
-    specs.push(`${row.mileage_km.toLocaleString()} km`);
-  if (row.body_type) specs.push(row.body_type);
   if (row.fuel_type) specs.push(row.fuel_type);
-  if (row.transmission) specs.push(row.transmission);
-  const color = row.color || row.interior_color;
-  if (color) specs.push(color);
-  const loc = [row.area, row.emirate].filter(Boolean).join(", ");
-  if (loc) specs.push(loc);
+  if (row.interior_color) specs.push(`Interior: ${row.interior_color}`);
 
   // One <img> per slide. Only the first loads eagerly; the rest are lazy so
   // 30 cards × 15 images doesn't all hit the network at once.
@@ -777,9 +770,6 @@ function renderCard(row) {
         <div class="price">${formatPrice(row.price_aed)}</div>
         <div class="specs">
           ${specs.map(s => `<span>${escapeHtml(s)}</span>`).join("")}
-        </div>
-        <div class="dealer">
-          <span>${escapeHtml(row.dealer_name || "")}</span>
         </div>
       </div>
     </div>
@@ -919,12 +909,11 @@ function openModal(row) {
     ["Interior", row.interior_color],
   ]);
 
-  // Dealer + location
+  // Contact + location — deliberately no dealer/seller name shown.
   fillDL("modal-dealer", [
-    ["Dealer",      row.dealer_name],
-    ["Seller type", row.seller_type],
-    ["Area",        row.area],
-    ["Emirate",     row.emirate],
+    ["Phone",   row.seller_phone],
+    ["Area",    row.area],
+    ["Emirate", row.emirate],
   ]);
 
   // Features (grouped accordion categories)

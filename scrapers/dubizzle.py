@@ -164,22 +164,34 @@ _DETAIL_JS = r"""
     features[cat] = out;
   }
 
-  // Images: dedupe all <img> tags pointing at the dbz-images CDN.
-  // Skip dealer profile logos and any non-listing images.
+  // Images: only this listing's photos — NOT the "Similar Cars" carousel
+  // at the bottom of the page. That carousel lives inside .embla__slide
+  // elements; without filtering it adds ~15 photos per similar car
+  // (10 similar cars ≈ 150 bogus images bleed into image_urls).
   const imgs = [];
   const seenImg = new Set();
+
+  // Skip anything inside a similar-cars carousel.
+  const inSimilarCarousel = (el) =>
+    !!(el.closest('.embla__slide') ||
+       el.closest('.embla__container') ||
+       el.closest('[data-testid="similar-cars"]'));
+
   document.querySelectorAll('img[src*="dbz-images.dubizzle.com/images/"]')
     .forEach(el => {
+      if (inSimilarCarousel(el)) return;
       const s = el.getAttribute('src') || '';
       if (!s) return;
-      if (s.includes('/profiles/')) return;
+      if (s.includes('/profiles/')) return;        // dealer avatars
       const base = s.split('?')[0];
       if (seenImg.has(base)) return;
       seenImg.add(base);
       imgs.push(s);
     });
 
-  // Also try __NEXT_DATA__ for the full gallery (usually has 10-20 photos).
+  // __NEXT_DATA__ — skip anything under a "similar*" key (similarAds,
+  // similarListings, similarCars…) so we don't descend into other ads'
+  // photo arrays. Main listing photos live at the top level.
   try {
     const nd = document.getElementById('__NEXT_DATA__');
     if (nd) {
@@ -189,6 +201,9 @@ _DETAIL_JS = r"""
         if (Array.isArray(obj)) { obj.forEach(v => walk(v, depth + 1)); return; }
         if (typeof obj !== 'object') return;
         for (const [key, val] of Object.entries(obj)) {
+          if (typeof key === 'string' && key.toLowerCase().startsWith('similar')) {
+            continue; // skip similarAds / similarListings / similarCars
+          }
           if ((key === 'photos' || key === 'images' || key === 'gallery')
               && Array.isArray(val)) {
             for (const p of val) {
