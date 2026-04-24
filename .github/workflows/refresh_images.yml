@@ -1,0 +1,72 @@
+name: Dubizzle image refresh
+
+# One-shot image re-extraction — run manually when the detail extractor has
+# been fixed and existing rows carry stale/contaminated image_urls.
+# GitHub Actions runners get a fresh IP per run, so this sidesteps Imperva
+# IP-level blocks that accumulate during long local runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max rows to refresh this run (default 2000)."
+        required: false
+        default: "2000"
+      cutoff:
+        description: "Only refresh rows whose last_changed_at is before this ISO timestamp (UTC). Default = 2026-04-24T16:00:00+00:00 (08 PM UAE)."
+        required: false
+        default: "2026-04-24T16:00:00+00:00"
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # ~10 s/row → 2000 rows ≈ 5.5 hrs. 350 min leaves a bit of headroom below
+    # GitHub's 6-hour ceiling. Adjust `limit` input down if you want shorter.
+    timeout-minutes: 350
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      DUBIZZLE_HEADLESS: "0"
+      DUBIZZLE_DETAIL_ROTATE_EVERY: "15"
+      DUBIZZLE_REFRESH_CUTOFF: ${{ inputs.cutoff }}
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system deps (xvfb)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends xvfb
+
+      - name: Install Python deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright Chromium (with OS deps)
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run refresh_images under Xvfb
+        run: xvfb-run -a --server-args='-screen 0 1920x1080x24' python -m scripts.refresh_images ${{ inputs.limit }}
+
+      - name: Notify Telegram on workflow failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets not set — skipping alert"
+            exit 0
+          fi
+          TEXT="🚨 GitHub Actions job failed — dubizzle image refresh
+          Run: $RUN_URL"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            --data-urlencode "disable_web_page_preview=true" > /dev/null

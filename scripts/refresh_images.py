@@ -31,6 +31,7 @@ import os
 import random
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -95,14 +96,35 @@ def main():
 
     client = get_client(sb_url, sb_key)
 
-    rows = _safe_exec(
-        client.table("car_listings")
-        .select("id, external_id, url")
-        .eq("source", "dubizzle")
-        .eq("is_active", True)
-        .order("first_seen_at")
-        .limit(limit)
-    ).data or []
+    # Only rows that haven't been touched since the cutoff — anything refreshed
+    # after this timestamp already went through the fixed extractor.
+    # Cutoff: 2026-04-24 20:00 Asia/Dubai (UTC+4) == 2026-04-24 16:00 UTC.
+    refresh_cutoff = os.environ.get(
+        "DUBIZZLE_REFRESH_CUTOFF", "2026-04-24T16:00:00+00:00"
+    )
+
+    # PostgREST caps single responses at the project's max-rows (default 1000),
+    # so page through with .range() until we have `limit` rows or run out.
+    PAGE = 1000
+    rows: list = []
+    offset = 0
+    while len(rows) < limit:
+        batch_size = min(PAGE, limit - len(rows))
+        batch = _safe_exec(
+            client.table("car_listings")
+            .select("id, external_id, url, last_changed_at")
+            .eq("source", "dubizzle")
+            .eq("is_active", True)
+            .lt("last_changed_at", refresh_cutoff)
+            .order("last_changed_at")
+            .range(offset, offset + batch_size - 1)
+        ).data or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < batch_size:
+            break
+        offset += len(batch)
 
     if not rows:
         logger.info("No active rows to refresh.")
@@ -186,7 +208,10 @@ def main():
                     try:
                         _safe_exec(
                             client.table("car_listings")
-                            .update({"image_urls": images})
+                            .update({
+                                "image_urls": images,
+                                "last_changed_at": datetime.now(timezone.utc).isoformat(),
+                            })
                             .eq("id", row["id"])
                         )
                         ok += 1

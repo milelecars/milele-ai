@@ -327,14 +327,30 @@ class DubizzleScraper(BaseScraper):
         # Stylesheets are kept: some Next.js hydration depends on them.
         if os.environ.get("DUBIZZLE_BLOCK_HEAVY", "1") != "0":
             _BLOCKED_TYPES = {"image", "media", "font"}
-            ctx.route(
-                "**/*",
-                lambda route: (
-                    route.abort()
-                    if route.request.resource_type in _BLOCKED_TYPES
-                    else route.continue_()
-                ),
+            # Imperva's captcha challenge loads images from these paths.
+            # If we abort them the "I'm human" checkbox never renders and
+            # the run stalls. Let them through even with blocker enabled.
+            _CAPTCHA_MARKERS = (
+                "_incapsula_resource",
+                "incapsula",
+                "imperva",
+                "distil",
+                "captcha",
+                "challenge",
+                "hcaptcha",
+                "recaptcha",
             )
+
+            def _route_handler(route):
+                req = route.request
+                if req.resource_type in _BLOCKED_TYPES:
+                    url_lower = req.url.lower()
+                    if not any(m in url_lower for m in _CAPTCHA_MARKERS):
+                        route.abort()
+                        return
+                route.continue_()
+
+            ctx.route("**/*", _route_handler)
         return ctx
 
     def _is_blocked(self, page) -> bool:
@@ -475,6 +491,32 @@ class DubizzleScraper(BaseScraper):
                             self._scroll_like_human(page)
 
                         items = page.evaluate(_LISTINGS_JS) or []
+
+                        # SSR race: JSON-LD is sometimes injected after the
+                        # initial DOMContentLoaded. If empty on first read,
+                        # scroll + wait and retry before declaring the segment
+                        # over — observed on seg 4 (75-100k) where the UI
+                        # shows 400+ ads but first evaluate returned [].
+                        if not items:
+                            try:
+                                self._scroll_like_human(page)
+                                page.wait_for_function(
+                                    """() => {
+                                        const s = document.querySelectorAll('script[type="application/ld+json"]');
+                                        for (const el of s) {
+                                            try {
+                                                const d = JSON.parse(el.textContent);
+                                                if (d && d.mainEntity && d.mainEntity.itemListElement && d.mainEntity.itemListElement.length) return true;
+                                            } catch (e) {}
+                                        }
+                                        return false;
+                                    }""",
+                                    timeout=15_000,
+                                )
+                                items = page.evaluate(_LISTINGS_JS) or []
+                            except Exception:
+                                pass
+
                         logger.info(
                             f"[dubizzle] {seg_tag} page {page_num}: {len(items)} items"
                         )
