@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milele — Car Search</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2028;
+    --card: #232b36;
+    --border: #2d3644;
+    --text: #e8ecf0;
+    --muted: #8893a0;
+    --accent: #4a9eff;
+    --accent-hover: #6ab0ff;
+    --success: #4ade80;
+    --warn: #fbbf24;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
+  }
+  header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.2px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+  /* Filters */
+  .filters {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .filter-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .filter-grid input, .filter-grid select {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .filter-grid input:focus, .filter-grid select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .range-row { display: flex; gap: 6px; }
+  .range-row input { flex: 1; min-width: 0; }
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    align-items: center;
+  }
+  button.primary, button.secondary {
+    background: var(--accent);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button.primary:hover { background: var(--accent-hover); }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  button.secondary:hover { color: var(--text); border-color: var(--muted); }
+  .status { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  /* Results */
+  .hint {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+  .results-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .results-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.1s, border-color 0.1s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .card-img {
+    aspect-ratio: 16 / 10;
+    background: #0a0e13;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+  .card-img .tag {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .card-img .tag.warranty { background: var(--success); color: #000; }
+  .card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+  .card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+  }
+  .card .price {
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .card .specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .card .specs span::before { content: "•"; margin-right: 6px; opacity: 0.5; }
+  .card .specs span:first-child::before { content: ""; margin: 0; }
+  .card .dealer {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card .dealer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .card .dealer a:hover { text-decoration: underline; }
+
+  /* Config banner */
+  .config-warning {
+    background: #3d2817;
+    border: 1px solid #7a4a1a;
+    color: #fcd34d;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .config-warning code {
+    background: rgba(0,0,0,0.3);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Milele · Car Search</h1>
+  <p>Filter the live Dubizzle inventory in Supabase</p>
+</header>
+
+<main>
+  <!-- Configuration warning (shown until user fills in credentials) -->
+  <div id="config-warning" class="config-warning" style="display:none">
+    <strong>Setup required:</strong> edit <code>web/index.html</code> and paste your
+    <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> into the
+    <code>&lt;script&gt;</code> block at the bottom. The anon key is safe to
+    embed — it's read-only via RLS.
+  </div>
+
+  <!-- Filters -->
+  <section class="filters">
+    <div class="filter-grid">
+      <label>Make
+        <input id="f-make" type="text" placeholder="any" list="makes-list">
+      </label>
+      <label>Model
+        <input id="f-model" type="text" placeholder="any">
+      </label>
+      <label>Year
+        <div class="range-row">
+          <input id="f-year-min" type="number" placeholder="min" min="1990" max="2030">
+          <input id="f-year-max" type="number" placeholder="max" min="1990" max="2030">
+        </div>
+      </label>
+      <label>Price AED
+        <div class="range-row">
+          <input id="f-price-min" type="number" placeholder="min" min="0" step="1000">
+          <input id="f-price-max" type="number" placeholder="max" min="0" step="1000">
+        </div>
+      </label>
+      <label>Max mileage (km)
+        <input id="f-mileage-max" type="number" placeholder="any" min="0" step="1000">
+      </label>
+      <label>Body type
+        <select id="f-body">
+          <option value="">any</option>
+          <option>SUV</option><option>Sedan</option><option>Coupe</option>
+          <option>Hatchback</option><option>Pick Up Truck</option>
+          <option>Van</option><option>Wagon</option>
+          <option>Convertible</option>
+        </select>
+      </label>
+      <label>Fuel
+        <select id="f-fuel">
+          <option value="">any</option>
+          <option>Petrol</option><option>Diesel</option>
+          <option>Hybrid</option><option>Electric</option>
+        </select>
+      </label>
+      <label>Color
+        <input id="f-color" type="text" placeholder="any">
+      </label>
+      <label>Emirate
+        <select id="f-emirate">
+          <option value="">any</option>
+          <option>Dubai</option><option>Abu Dhabi</option>
+          <option>Sharjah</option><option>Ajman</option>
+          <option>Ras Al Khaimah</option><option>Fujairah</option>
+          <option>Umm Al Quwain</option>
+        </select>
+      </label>
+      <label>Warranty
+        <select id="f-warranty">
+          <option value="">any</option>
+          <option value="true">yes</option>
+          <option value="false">no</option>
+        </select>
+      </label>
+      <label>Condition
+        <select id="f-condition">
+          <option value="">any</option>
+          <option value="new">new</option>
+          <option value="used">used</option>
+        </select>
+      </label>
+      <label>Sort by
+        <select id="f-sort">
+          <option value="first_seen_at.desc">newest listed</option>
+          <option value="price_aed.asc">price: low → high</option>
+          <option value="price_aed.desc">price: high → low</option>
+          <option value="year.desc">year: newest</option>
+          <option value="mileage_km.asc">mileage: low → high</option>
+        </select>
+      </label>
+    </div>
+    <div class="actions">
+      <button id="btn-search" class="primary">Search</button>
+      <button id="btn-reset" class="secondary">Reset</button>
+      <span id="status" class="status"></span>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results">
+    <div class="hint">Set filters and hit <strong>Search</strong> to see matches.</div>
+  </section>
+</main>
+
+<!-- Autocomplete source — populated once from the DB -->
+<datalist id="makes-list"></datalist>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ──────────────────────────────────────────────────────────────────────
+// CONFIG — paste your own values below.
+//   SUPABASE_URL       Supabase project URL (same one the scraper uses)
+//   SUPABASE_ANON_KEY  The "anon public" key (NOT the service_role key).
+//                      Find both in Supabase → Settings → API.
+// Anon key is safe to embed in browser source — RLS controls access.
+// ──────────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "YOUR_SUPABASE_URL_HERE";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY_HERE";
+
+const RESULT_LIMIT = 30;
+
+// Multi-column text search (user types "white" → matches color,
+// interior_color OR description). Same behaviour as the bot.
+const COLOR_COLS = ["color", "interior_color", "description"];
+
+// ──────────────────────────────────────────────────────────────────────
+if (SUPABASE_URL.startsWith("YOUR_") || SUPABASE_ANON_KEY.startsWith("YOUR_")) {
+  document.getElementById("config-warning").style.display = "block";
+}
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = (id) => document.getElementById(id);
+const setStatus = (msg) => { $("status").textContent = msg; };
+
+// Populate the make autocomplete once the page loads (single cheap query)
+async function loadMakes() {
+  try {
+    const { data, error } = await sb
+      .from("car_listings")
+      .select("make")
+      .eq("is_active", true)
+      .not("make", "is", null)
+      .limit(5000);
+    if (error) throw error;
+    const makes = [...new Set((data || []).map(r => r.make).filter(Boolean))].sort();
+    const dl = $("makes-list");
+    dl.innerHTML = makes.map(m => `<option value="${m}">`).join("");
+  } catch (e) {
+    console.warn("makes prefill failed (probably RLS):", e.message);
+  }
+}
+
+function readFilters() {
+  const v = (id) => $(id).value.trim();
+  const n = (id) => {
+    const x = v(id);
+    return x === "" ? null : Number(x);
+  };
+  return {
+    make: v("f-make"),
+    model: v("f-model"),
+    year_min: n("f-year-min"),
+    year_max: n("f-year-max"),
+    price_min: n("f-price-min"),
+    price_max: n("f-price-max"),
+    mileage_max: n("f-mileage-max"),
+    body_type: v("f-body"),
+    fuel_type: v("f-fuel"),
+    color: v("f-color"),
+    emirate: v("f-emirate"),
+    warranty: v("f-warranty"),       // "", "true", "false"
+    condition: v("f-condition"),
+    sort: v("f-sort") || "first_seen_at.desc",
+  };
+}
+
+function buildQuery(f) {
+  let q = sb
+    .from("car_listings")
+    .select(
+      "external_id,url,make,model,trim,variant,year,body_type,fuel_type," +
+      "transmission,mileage_km,price_aed,color,interior_color,emirate,area," +
+      "dealer_name,warranty,image_urls,first_seen_at",
+      { count: "exact" }
+    )
+    .eq("is_active", true);
+
+  if (f.make)       q = q.ilike("make",  `%${f.make}%`);
+  if (f.model)      q = q.ilike("model", `%${f.model}%`);
+  if (f.year_min != null) q = q.gte("year", f.year_min);
+  if (f.year_max != null) q = q.lte("year", f.year_max);
+  if (f.price_min != null) q = q.gte("price_aed", f.price_min);
+  if (f.price_max != null) q = q.lte("price_aed", f.price_max);
+  if (f.mileage_max != null) q = q.lte("mileage_km", f.mileage_max);
+  if (f.body_type)  q = q.ilike("body_type", `%${f.body_type}%`);
+  if (f.fuel_type)  q = q.ilike("fuel_type", `%${f.fuel_type}%`);
+  if (f.emirate)    q = q.ilike("emirate", `%${f.emirate}%`);
+  if (f.condition)  q = q.eq("condition", f.condition);
+  if (f.warranty === "true")  q = q.eq("warranty", true);
+  if (f.warranty === "false") q = q.eq("warranty", false);
+  if (f.color) {
+    // OR across color + interior_color + description
+    const clauses = COLOR_COLS
+      .map(c => `${c}.ilike.*${f.color.replace(/[,()]/g, "")}*`)
+      .join(",");
+    q = q.or(clauses);
+  }
+
+  const [col, dir] = f.sort.split(".");
+  q = q.order(col, { ascending: dir === "asc" }).limit(RESULT_LIMIT);
+  return q;
+}
+
+function escapeHtml(s) {
+  if (s == null) return "";
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function formatPrice(n) {
+  if (n == null) return "AED —";
+  try { return "AED " + Math.round(Number(n)).toLocaleString(); }
+  catch { return "AED —"; }
+}
+
+function renderCard(row) {
+  const img = (row.image_urls && row.image_urls[0]) || "";
+  const title = [
+    row.year, row.make, row.model, row.trim,
+  ].filter(Boolean).join(" ");
+  const specs = [];
+  if (row.mileage_km != null && row.mileage_km > 0)
+    specs.push(`${row.mileage_km.toLocaleString()} km`);
+  if (row.body_type) specs.push(row.body_type);
+  if (row.fuel_type) specs.push(row.fuel_type);
+  if (row.transmission) specs.push(row.transmission);
+  const color = row.color || row.interior_color;
+  if (color) specs.push(color);
+  const loc = [row.area, row.emirate].filter(Boolean).join(", ");
+  if (loc) specs.push(loc);
+
+  return `
+    <div class="card">
+      <div class="card-img" style="background-image: url('${escapeHtml(img)}')">
+        ${row.condition === "new" ? '<span class="tag">NEW</span>' : ""}
+        ${row.warranty === true ? '<span class="tag warranty" style="right:8px;left:auto">Warranty</span>' : ""}
+      </div>
+      <div class="card-body">
+        <h3>${escapeHtml(title || "Listing")}</h3>
+        <div class="price">${formatPrice(row.price_aed)}</div>
+        <div class="specs">
+          ${specs.map(s => `<span>${escapeHtml(s)}</span>`).join("")}
+        </div>
+        <div class="dealer">
+          <span>${escapeHtml(row.dealer_name || "")}</span>
+          <a href="${escapeHtml(row.url || "#")}" target="_blank" rel="noopener">View on Dubizzle →</a>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function doSearch() {
+  setStatus("searching…");
+  const results = $("results");
+  results.innerHTML = '<div class="hint">Searching…</div>';
+
+  const f = readFilters();
+  try {
+    const { data, count, error } = await buildQuery(f);
+    if (error) throw error;
+    const rows = data || [];
+
+    if (rows.length === 0) {
+      results.innerHTML = '<div class="hint">No matches. Try relaxing a filter.</div>';
+      setStatus(`0 matches`);
+      return;
+    }
+
+    const headline = count != null && count > rows.length
+      ? `${count} matches — showing ${rows.length}`
+      : `${rows.length} match${rows.length === 1 ? "" : "es"}`;
+
+    results.innerHTML = `
+      <div class="results-header">
+        <h2>${headline}</h2>
+      </div>
+      <div class="results-grid">
+        ${rows.map(renderCard).join("")}
+      </div>
+    `;
+    setStatus(headline);
+  } catch (e) {
+    results.innerHTML = `<div class="hint" style="color:#f87171">Error: ${escapeHtml(e.message || String(e))}</div>`;
+    setStatus("error");
+  }
+}
+
+function resetFilters() {
+  document.querySelectorAll(".filter-grid input, .filter-grid select")
+    .forEach(el => { el.value = ""; });
+  $("f-sort").value = "first_seen_at.desc";
+  $("results").innerHTML = '<div class="hint">Set filters and hit <strong>Search</strong> to see matches.</div>';
+  setStatus("");
+}
+
+$("btn-search").addEventListener("click", doSearch);
+$("btn-reset").addEventListener("click", resetFilters);
+
+// Allow Enter key anywhere in the form to submit
+document.querySelector(".filters").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") doSearch();
+});
+
+// Prefill the Make dropdown on load
+loadMakes();
+</script>
+</body>
+</html>

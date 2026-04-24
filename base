@@ -1,0 +1,321 @@
+2026-04-20 21:50:22,474 [INFO] HTTP Request: GET https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?select=id%2Cexternal_id%2Cmake%2Cmodel%2Cimage_urls%2Curl&source=eq.dubizzle&is_active=eq.True&color=is.null&order=first_seen_at.asc&limit=1500 "HTTP/2 200 OK"
+2026-04-20 21:50:27,179 [INFO] Processing up to 1000 rows via Groq (meta-llama/llama-4-scout-17b-16e-instruct). Throttling ~30 RPM (~2 s per call).
+2026-04-20 21:50:28,000 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:28,395 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.9e8adaf1-0e16-4028-a24e-987f07baf502 "HTTP/2 200 OK"
+2026-04-20 21:50:28,398 [INFO] [1/1000] Mitsubishi L200 (dba14743) → white | https://dubai.dubizzle.com/motors/used-cars/mitsubishi/l200/2026/4/14/mitsubishi-l200-2wd-model-2023-new-car-die-2-656---dba147431ef246d1a168c4d270b134bd/
+2026-04-20 21:50:30,582 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:30,966 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.724e58e5-5672-4349-a4b0-7368baeb41e8 "HTTP/2 200 OK"
+2026-04-20 21:50:30,969 [INFO] [2/1000] Nissan N6 (9aa0c855) → black | https://dubai.dubizzle.com/motors/used-cars/nissan/n6/2026/4/10/n6-180-pro-2025-2-887---9aa0c85520214a36ae5de06a348bb651/
+2026-04-20 21:50:34,017 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:34,324 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.9ebc7ee9-ba29-453c-a85c-860ba6ce502a "HTTP/2 200 OK"
+2026-04-20 21:50:34,326 [INFO] [3/1000] Chery Tiggo 7 (d969a918) → white | https://dubai.dubizzle.com/motors/used-cars/chery/tiggo-7/2025/10/3/aed-991-emi-for-5yrs-chery-tiggo-7-15l-202-2-937---d969a9183cbc4e0484d3157f919d8051/
+2026-04-20 21:50:37,552 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:37,928 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.44d87c7f-6aac-4ef1-b4cb-ef14f88a5a1c "HTTP/2 200 OK"
+2026-04-20 21:50:37,929 [INFO] [4/1000] ZXAUTO Terralord (6ebafa36) → white | https://dubai.dubizzle.com/motors/used-cars/zxauto/terralord/2025/11/10/zxauto-terralord-2026-brand-new-manual-tra-2-343---6ebafa36cc84491daee1b0a7b0705f75/
+2026-04-20 21:50:40,359 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:40,657 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.4a9d4de9-3373-4dc7-a52e-03dc0d85e6d9 "HTTP/2 200 OK"
+2026-04-20 21:50:40,658 [INFO] [5/1000] Peugeot Expert (75a3a480) → white | https://dubai.dubizzle.com/motors/used-cars/peugeot/expert/2026/4/9/2024-peugeot-e-expert-l3-gcc-specs-brand-n-2-831---75a3a480796e400a8d4e429b23780ef1/
+2026-04-20 21:50:43,250 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:43,556 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.59bb362b-9583-4b54-a7d4-0c795fca5902 "HTTP/2 200 OK"
+2026-04-20 21:50:43,558 [INFO] [6/1000] BYD Song Plus (7afaea1d) → white | https://dubai.dubizzle.com/motors/used-cars/byd/song-plus/2025/10/6/byd-song-plus-byd-song-plus-dm-i-160km-fla-2-003---7afaea1d9c804675b07eb29fe90a027f/
+2026-04-20 21:50:46,281 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:46,576 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.fa4567a9-e291-4d25-9f19-4768bd5a4b70 "HTTP/2 200 OK"
+2026-04-20 21:50:46,578 [INFO] [7/1000] Toyota Hilux (3c8f5dfa) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/hilux/2025/12/12/toyota-hilux-27l-at-2025-steel-wheels-2-703---3c8f5dfadaff4d238da60bbe90645db0/
+2026-04-20 21:50:49,389 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:49,687 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.72ef1346-f140-4506-bd5b-83c70f064df8 "HTTP/2 200 OK"
+2026-04-20 21:50:49,692 [INFO] [8/1000] Honda ENS2 (2fd72eea) → white | https://dubai.dubizzle.com/motors/used-cars/honda/ens2/2026/4/16/honda-ens2-full-option-brand-new-aed-1450--2-857---2fd72eea2bd944f9a79c5fa0d98e4f3e/
+2026-04-20 21:50:52,062 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:52,353 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.87dc1e01-20b8-48b0-952e-0f2d6d6505a2 "HTTP/2 200 OK"
+2026-04-20 21:50:52,355 [INFO] [9/1000] Toyota Hilux (456335ec) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/hilux/2026/4/6/2025-toyota-hilux-double-cab-glx-gccother--2-808---456335eccea84e2fb9c47d2c0ba0a207/
+2026-04-20 21:50:54,252 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:50:54,252 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:50:56,769 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:50:57,067 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.b120fe5c-1248-492c-8c79-fef4a3046fcd "HTTP/2 200 OK"
+2026-04-20 21:50:57,068 [INFO] [10/1000] Nissan X-Trail (8ba4788e) → white | https://dubai.dubizzle.com/motors/used-cars/nissan/x-trail/2025/12/16/aed-1380-monthly-nissan-xtrail-s-25l-gcc-z-2-103---8ba4788e484948e094f0d3735d685ef1/
+2026-04-20 21:50:59,258 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:50:59,259 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:02,909 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:03,323 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.bb05f7a7-140a-40a8-9419-028dd0b739cd "HTTP/2 200 OK"
+2026-04-20 21:51:03,325 [INFO] [11/1000] Jetour Dashing (f12ef849) → black | https://dubai.dubizzle.com/motors/used-cars/jetour/dashing/2024/8/22/brand-new-2025-jetour-dashing-ii-6-years-u-2-425---f12ef849141b40a899789d299f61de7e/
+2026-04-20 21:51:05,754 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:05,755 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:09,364 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:09,688 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.c4864cde-e7d5-43d4-8bc5-c279b3ca4f55 "HTTP/2 200 OK"
+2026-04-20 21:51:09,690 [INFO] [12/1000] Hyundai Tucson (04f9a3e1) → white | https://dubai.dubizzle.com/motors/used-cars/hyundai/tucson/2026/3/7/address-motor-2-633---04f9a3e1e9484d4eb53feb56a19d5342/
+2026-04-20 21:51:12,215 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:12,216 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:15,573 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:15,895 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.ddd5842c-a18a-4c91-b477-cfa71780fa65 "HTTP/2 200 OK"
+2026-04-20 21:51:15,896 [INFO] [13/1000] GAC GS3 (66400a90) → black | https://dubai.dubizzle.com/motors/used-cars/gac/gs3/2026/4/13/1518-pm-gs3-emzoom-r-style-0-downpayment-5-2-143---66400a90dfb24c30942a30cda07fa834/
+2026-04-20 21:51:18,210 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:18,210 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:21,790 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:22,162 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.e5ff81df-b864-4b39-adc4-f49c31a4f66d "HTTP/2 200 OK"
+2026-04-20 21:51:22,164 [INFO] [14/1000] MINI Cooper (cafba129) → green | https://dubai.dubizzle.com/motors/used-cars/mini/cooper/2026/4/16/2025-mini-cooper-korean-specs-brand-new-2-224---cafba1291e844edab6c8b61b7de5023d/
+2026-04-20 21:51:24,232 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:24,233 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:27,794 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:28,206 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.e80ca526-774a-4500-83a5-2638c30f4c33 "HTTP/2 200 OK"
+2026-04-20 21:51:28,208 [INFO] [15/1000] BAIC X55 (34fc0f17) → red | https://dubai.dubizzle.com/motors/used-cars/baic/x55/2025/10/16/baic-x55-luxury-brand-new-2025-gcc-agency--2-057---34fc0f17305e419bbdbc8a257776ddb3/
+2026-04-20 21:51:30,821 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:30,821 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:51:33,787 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:34,176 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.ec834845-5cdf-43ed-be2b-ea8385cb3121 "HTTP/2 200 OK"
+2026-04-20 21:51:34,181 [INFO] [16/1000] BYD Song L (5718ea44) → silver | https://dubai.dubizzle.com/motors/used-cars/byd/song-l/2026/4/1/new-2025-byd-song-l-dm-i-chinese-specs-2-672---5718ea4483e14fc3aa736ae285b2ebea/
+2026-04-20 21:51:36,195 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:36,197 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:39,879 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:40,288 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.fecf526b-69c9-44cc-b192-75970beeb0fb "HTTP/2 200 OK"
+2026-04-20 21:51:40,289 [INFO] [17/1000] Ford Edge (d671f5c0) → maroon | https://dubai.dubizzle.com/motors/used-cars/ford/edge/2025/10/14/2350-pm-0-downpayment-edge-sel-agency-warr-2-458---d671f5c01e8548c48aa39cc42597cc11/
+2026-04-20 21:51:42,259 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:42,260 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:45,817 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:46,141 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.cd7f07fd-647d-4e02-b664-fd7e205ed957 "HTTP/2 200 OK"
+2026-04-20 21:51:46,142 [INFO] [18/1000] Hyundai Elantra (90e5d666) → black | https://dubai.dubizzle.com/motors/used-cars/hyundai/elantra/2026/1/8/elantra-premium-full-option-with-radar-2-347---90e5d666d240494d86602f70846a82af/
+2026-04-20 21:51:48,038 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:48,039 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:51,532 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:51,843 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.66da6383-7ba1-4e09-89d8-6342bf0f0161 "HTTP/2 200 OK"
+2026-04-20 21:51:51,845 [INFO] [19/1000] BYD Qin Plus (140dfc8e) → white | https://dubai.dubizzle.com/motors/used-cars/byd/qin-plus/2026/2/11/byd-qin-plus-2-951---140dfc8e61124e16acb4b2bc403f2f25/
+2026-04-20 21:51:54,139 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:54,140 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:51:57,795 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:51:58,106 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.8053c401-35d7-4203-b0ba-fe70a9fe4cc2 "HTTP/2 200 OK"
+2026-04-20 21:51:58,108 [INFO] [20/1000] Toyota Urban Cruiser (ac4da0c3) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/urban-cruiser/2026/3/30/2026-toyota-urban-cruiser-15l-glx-gcc-bran-2-751---ac4da0c3b4244e53b37514ff98de6f07/
+2026-04-20 21:51:59,983 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:51:59,983 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:03,589 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:03,901 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.583f2898-00ee-4e9e-a273-b55e7d37749b "HTTP/2 200 OK"
+2026-04-20 21:52:03,904 [INFO] [21/1000] Toyota Corolla (5113a4ef) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/corolla/2024/5/18/brand-new-toyota-corolla-2024-model-0km-2-879---5113a4efabf8476ea7678bb0aefa7aac/
+2026-04-20 21:52:06,203 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:06,206 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:10,361 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:10,677 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.78c9e289-ea1f-4d6c-87a3-621db196621e "HTTP/2 200 OK"
+2026-04-20 21:52:10,679 [INFO] [22/1000] MG ZS (1a4a2dca) → white | https://abudhabi.dubizzle.com/motors/used-cars/mg/zs/2026/2/12/mg-zs-2026--3-094---1a4a2dca1e35468287ac2ba3d93047f6/
+2026-04-20 21:52:12,986 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:12,987 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:17,046 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:17,352 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.8d1f5da6-074b-418e-850f-e9315081b4a6 "HTTP/2 200 OK"
+2026-04-20 21:52:17,355 [INFO] [23/1000] MG MG5 (37c7d87a) → white | https://dubai.dubizzle.com/motors/used-cars/mg/mg5/2025/12/5/2026-mg5-15l-cvt-std-2-848---37c7d87aecc8498eb9247183b7934e38/
+2026-04-20 21:52:19,288 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:19,289 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:22,989 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:23,314 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.1110a231-d835-418f-837d-c36927493cab "HTTP/2 200 OK"
+2026-04-20 21:52:23,317 [INFO] [24/1000] Changan Deepal G318 (3e9b6420) → black | https://dubai.dubizzle.com/motors/used-cars/changan/deepal-g318/2026/3/24/new-2024-changan-deepal-g318-air-comfort-g-2-581---3e9b6420d54b451ca244e41e3f4fa744/
+2026-04-20 21:52:25,368 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:25,369 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:28,771 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:29,787 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.e9862510-46e3-4b8e-9cc9-5d3b71202c7f "HTTP/2 200 OK"
+2026-04-20 21:52:29,789 [INFO] [25/1000] Hyundai Elantra (efe10dd9) → white | https://dubai.dubizzle.com/motors/used-cars/hyundai/elantra/2026/1/13/hyundai-elantra-15l-petrol-model-2025-colo-2-129---efe10dd98f524a86b9ecd9a5b5842f7f/
+2026-04-20 21:52:32,288 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:32,289 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:52:34,757 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:35,073 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.8f079741-8e48-4a06-9e23-7f0e1f2770f4 "HTTP/2 200 OK"
+2026-04-20 21:52:35,076 [INFO] [26/1000] Suzuki Fronx (47f7d078) → silver | https://dubai.dubizzle.com/motors/used-cars/suzuki/fronx/2026/1/24/2025-suzuki-fronx-glx-15l-at-petrol-with-9-2-817---47f7d0786e3c42a9b6b7dde791d6a7a3/
+2026-04-20 21:52:37,409 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:37,409 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:40,887 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:41,204 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.9db33046-158d-4fe9-b058-204d5759f9fc "HTTP/2 200 OK"
+2026-04-20 21:52:41,205 [INFO] [27/1000] BYD Seal (9b59de08) → white | https://dubai.dubizzle.com/motors/used-cars/byd/seal/2026/2/6/byd-seal-05-15l-plug-in-hybrid-2025-0-km-f-2-618---9b59de08992f432ab60cfd2cea98ab9f/
+2026-04-20 21:52:43,453 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:43,454 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:46,947 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:47,361 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.63ac909c-6265-48e2-a8b6-687835f1ed08 "HTTP/2 200 OK"
+2026-04-20 21:52:47,362 [INFO] [28/1000] Nissan Magnite (46a74ab8) → white | https://alain.dubizzle.com/motors/used-cars/nissan/magnite/2026/2/6/nissan-magnite-station-gcc-brand-new-39-303---46a74ab87d4340eaa1e876c996296942/
+2026-04-20 21:52:49,617 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:49,618 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:53,093 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:53,414 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.583ce0bd-7765-426d-8a5f-28e714cdf509 "HTTP/2 200 OK"
+2026-04-20 21:52:53,416 [INFO] [29/1000] Kia Seltos (878993ce) → white | https://dubai.dubizzle.com/motors/used-cars/kia/seltos/2026/1/21/kia-seltos-2025-zero-km-2-944---878993ce917e4bf5a6bd35328c122f52/
+2026-04-20 21:52:55,585 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:52:55,586 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:52:59,084 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:52:59,413 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.34465285-65bb-402d-822c-1cdaafd8366a "HTTP/2 200 OK"
+2026-04-20 21:52:59,418 [INFO] [30/1000] TANK 300 (50c9304d) → white | https://dubai.dubizzle.com/motors/used-cars/tank/300/2025/11/11/gwm-tank-300-at-20l-2025-model-2-083---50c9304d10504ae1b6186299ecd7bf63/
+2026-04-20 21:53:01,655 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:01,656 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:04,982 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:05,382 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.948201b1-f641-4bf5-965d-afc78fa1b039 "HTTP/2 200 OK"
+2026-04-20 21:53:05,390 [INFO] [31/1000] Renault Duster (78fb75c0) → white | https://dubai.dubizzle.com/motors/used-cars/renault/duster/2026/4/16/2025-renault-duster-le-16l-petrol-gcc-17-a-2-646---78fb75c0fd474d569690c339442d53d2/
+2026-04-20 21:53:07,882 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:07,883 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:11,424 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:11,836 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.92f20971-c2da-4adc-9484-0b8356e00e22 "HTTP/2 200 OK"
+2026-04-20 21:53:11,838 [INFO] [32/1000] BYD Song Plus (106efd2d) → white | https://dubai.dubizzle.com/motors/used-cars/byd/song-plus/2025/12/17/byd-song-plus-new-energy-ev-smart-drive-52-2-444---106efd2dbf3c4c44a00482bf2175101a/
+2026-04-20 21:53:13,777 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:13,779 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:17,871 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:18,194 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.da86936b-56b7-4442-bf2d-c809df3db4a3 "HTTP/2 200 OK"
+2026-04-20 21:53:18,197 [INFO] [33/1000] Peugeot Expert (17f0beaa) → white | https://dubai.dubizzle.com/motors/used-cars/peugeot/expert/2026/3/17/fiat-scudo-brand-new-cargo-van-diesel-auto-2-638---17f0beaa9a6b467f839745a896300a25/
+2026-04-20 21:53:20,668 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:20,670 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:24,017 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:24,379 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.a21122cc-f285-47a8-9a2c-70525f79380e "HTTP/2 200 OK"
+2026-04-20 21:53:24,383 [INFO] [34/1000] Nissan Sylphy (54e9876f) → white | https://dubai.dubizzle.com/motors/used-cars/nissan/sylphy/2026/1/7/nissan-sylphy-classic-16l-basic-with-sunro-2-972---54e9876fb97c4d4fae563831cba72a95/
+2026-04-20 21:53:26,764 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:26,765 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:30,495 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:30,879 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.9951710c-a072-472d-99bb-fe7901f2098d "HTTP/2 200 OK"
+2026-04-20 21:53:30,880 [INFO] [35/1000] Isuzu N-SERIES (922bf38e) → white | https://dubai.dubizzle.com/motors/used-cars/isuzu/n-series/2026/1/14/isuzu-nmr-chassis-46l-2026-model-2-652---922bf38e872c4fd7a394f96b532c9766/
+2026-04-20 21:53:33,011 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:33,012 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:36,390 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:36,697 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.321e30d7-053c-4b3e-92ba-5ec5b4c7cb19 "HTTP/2 200 OK"
+2026-04-20 21:53:36,698 [INFO] [36/1000] King Long China Mini Van (3541aaab) → white | https://dubai.dubizzle.com/motors/used-cars/king-long/china-mini-van/2026/2/17/kinglong-kingwin-27l-flat-roof-diesel-2026-2-828---3541aaab8c9c400589b377d52f2e7144/
+2026-04-20 21:53:39,068 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:39,069 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:42,860 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:43,185 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.51362454-f1d7-45ce-8d4c-539a1f45c989 "HTTP/2 200 OK"
+2026-04-20 21:53:43,187 [INFO] [37/1000] MG ZS (2af39525) → white | https://dubai.dubizzle.com/motors/used-cars/mg/zs/2025/11/20/mg-zs-15l-mid-option-new-shape-2025-gcc-sp-2-172---2af395252744451cae6223be2313a233/
+2026-04-20 21:53:45,295 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:45,296 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:49,167 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:49,478 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.0858557c-250f-4c98-a479-c6d646f82d22 "HTTP/2 200 OK"
+2026-04-20 21:53:49,479 [INFO] [38/1000] MG ZS (306d4bc3) → white | https://dubai.dubizzle.com/motors/used-cars/mg/zs/2025/12/5/2026-mg-zs-15l-at-std-2wd-2-060---306d4bc32bdb4a429b5081f5b99345e2/
+2026-04-20 21:53:51,459 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:51,460 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:53:55,151 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:53:55,557 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.fdbe7294-4fd2-4788-9d91-c31ac38aaf53 "HTTP/2 200 OK"
+2026-04-20 21:53:55,558 [INFO] [39/1000] Chery Arrizo 5 (525964b3) → silver | https://dubai.dubizzle.com/motors/used-cars/chery/arrizo-5/2025/11/3/0-dp-free-service-6-years-warranty-officia-2-800---525964b3267c4517a42b18ae770cb2e4/
+2026-04-20 21:53:57,665 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:53:57,666 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:01,088 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:01,471 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.e385fe4d-bb9a-4b0b-b186-3103dc621d53 "HTTP/2 200 OK"
+2026-04-20 21:54:01,476 [INFO] [40/1000] BYD Qin Plus (4fcdc906) → white | https://dubai.dubizzle.com/motors/used-cars/byd/qin-plus/2026/3/19/byd-qin-plus-dm-i-15l-hybrid-2025-brand-ne-2-439---4fcdc906c7f84476b38dbc015640fcac/
+2026-04-20 21:54:03,357 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:03,358 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:06,660 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:07,042 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.3e9b7cf3-0103-41cd-b201-0807708b7213 "HTTP/2 200 OK"
+2026-04-20 21:54:07,045 [INFO] [41/1000] Kia Seltos (cd04081f) → white | https://dubai.dubizzle.com/motors/used-cars/kia/seltos/2026/4/14/kia-seltos-15l-gcc-specs-2026-export-only--2-551---cd04081f1a9c4c9ead6b480eac348c91/
+2026-04-20 21:54:09,192 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:09,193 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:12,990 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:13,891 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.548ddff0-c105-4c44-9a4b-8b6e2776c3c0 "HTTP/2 200 OK"
+2026-04-20 21:54:13,894 [INFO] [42/1000] Toyota Frontlander (0d3a6557) → white | https://sharjah.dubizzle.com/motors/used-cars/toyota/frontlander/2026/4/15/brand-new-2025-toyota-frontlander-gccother-12-059---0d3a65572a0848eda64e9200428772ad/
+2026-04-20 21:54:15,758 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:15,759 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:19,432 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:19,828 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.61d79472-3780-4275-a922-c32b9d859f24 "HTTP/2 200 OK"
+2026-04-20 21:54:19,835 [INFO] [43/1000] Jetour T2 (eb316aff) → grey | https://dubai.dubizzle.com/motors/used-cars/jetour/t2/2026/4/4/jetour-t2-4wd-conquest-pro-travel-20l-turb-2-456---eb316aff390044c4bde2ec58ec2a9a6a/
+2026-04-20 21:54:21,961 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:21,961 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:25,536 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:25,914 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.04f72916-5795-4ca9-971c-9d73c5fdabc4 "HTTP/2 200 OK"
+2026-04-20 21:54:25,914 [INFO] [44/1000] Kia Carens (f1abcd4f) → grey | https://dubai.dubizzle.com/motors/used-cars/kia/carens/2026/4/14/kia-carens-15-cc-model-2025-gcc-2-210---f1abcd4fb25543199a6fd35f02b891b0/
+2026-04-20 21:54:28,289 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:28,290 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:31,568 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:32,526 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.02e9272b-f38e-4473-9cc4-1e12bcd81236 "HTTP/2 200 OK"
+2026-04-20 21:54:32,527 [INFO] [45/1000] Nissan Navara (3c4ea171) → white | https://dubai.dubizzle.com/motors/used-cars/nissan/navara/2025/3/21/2023-nissan-navara-25-petrol-se-4x2-mt-dc--2-293---3c4ea17180574fe7ab6ead9c25d2f0f0/
+2026-04-20 21:54:35,037 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:35,038 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:54:37,645 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:38,107 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.63332ca9-49d5-4e6d-bd2d-c04556e8dd19 "HTTP/2 200 OK"
+2026-04-20 21:54:38,109 [INFO] [46/1000] Isuzu D-Max (5b079400) → white | https://dubai.dubizzle.com/motors/used-cars/isuzu/d-max/2025/12/22/isuzu-d-max-25l-sc-4x2-flat-deck-2026-mode-2-849---5b079400892b44159b267a3378a73dea/
+2026-04-20 21:54:40,517 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:40,518 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:43,808 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:44,289 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.3726179e-664c-4f01-845c-623634943089 "HTTP/2 200 OK"
+2026-04-20 21:54:44,291 [INFO] [47/1000] Mitsubishi L200 (2be6c6f3) → white | https://dubai.dubizzle.com/motors/used-cars/mitsubishi/l200/2026/4/14/mitsubishi-l200-2wd-model-2023-new-car-die-2-650---2be6c6f3fdc5409baedf42fc79e71338/
+2026-04-20 21:54:46,876 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:46,877 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:54:49,522 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:49,920 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.5a67ba15-a632-47fb-bd32-5fcd4eabe8fe "HTTP/2 200 OK"
+2026-04-20 21:54:49,921 [INFO] [48/1000] Suzuki Swift (88cf8e13) → silver | https://dubai.dubizzle.com/motors/used-cars/suzuki/swift/2026/1/14/suzuki-swift-glx-12l-2-109---88cf8e13d42945e6a0c7b48a667d6016/
+2026-04-20 21:54:52,326 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:52,327 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:54:55,974 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:54:56,488 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.d614bf39-c785-4f51-bf56-e56c48e5f9a9 "HTTP/2 200 OK"
+2026-04-20 21:54:56,490 [INFO] [49/1000] Mitsubishi L200 (1023992f) → white | https://dubai.dubizzle.com/motors/used-cars/mitsubishi/l200/2026/4/16/mitsubishi-l200-2wd-model-2023-new-car-die-2-716---1023992ffc414dacbb4f8e0ea0726f98/
+2026-04-20 21:54:58,764 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:54:58,764 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:55:01,298 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:01,709 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.d6ec9d8b-1c72-4324-8a23-449f268cea3c "HTTP/2 200 OK"
+2026-04-20 21:55:01,711 [INFO] [50/1000] MG One (52248da9) → maroon | https://sharjah.dubizzle.com/motors/used-cars/mg/one/2026/4/7/new-2024-mg-one-gccother-specs-12-541---52248da9b7f343999ce4f929030e511c/
+2026-04-20 21:55:03,842 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:03,843 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:07,235 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:07,652 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.d0787e7e-85bd-4fd4-9264-673eaa68db76 "HTTP/2 200 OK"
+2026-04-20 21:55:07,655 [INFO] [51/1000] Kia Seltos (97c9856d) → white | https://dubai.dubizzle.com/motors/used-cars/kia/seltos/2026/4/16/2025-kia-seltos-brand-new-gcc-specs-likely-2-798---97c9856dd9684698b63099986ecd0605/
+2026-04-20 21:55:10,160 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:10,161 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:13,588 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:13,999 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.22700756-5856-4824-8580-5c4a09281c1c "HTTP/2 200 OK"
+2026-04-20 21:55:14,002 [INFO] [52/1000] Toyota Corolla (ab0681c6) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/corolla/2026/2/6/2025-toyota-corolla-18l-hybrid-2-075---ab0681c6efce46d49726ebdf780f5fb9/
+2026-04-20 21:55:16,608 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:16,610 [INFO] Retrying request to /openai/v1/chat/completions in 2.000000 seconds
+2026-04-20 21:55:19,013 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:19,370 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.22840e5b-92f9-4e66-8055-00be2695513a "HTTP/2 200 OK"
+2026-04-20 21:55:19,380 [INFO] [53/1000] Kia Seltos (3cf8604a) → white | https://dubai.dubizzle.com/motors/used-cars/kia/seltos/2026/4/14/kia-seltos-luxury-edition-dual-tone-for-sa-2-280---3cf8604a0c274a58acbd10e002f3fd86/
+2026-04-20 21:55:21,668 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:21,669 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:25,134 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:25,575 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.2c6a6291-f96c-48f9-b5e3-8092dfd31a76 "HTTP/2 200 OK"
+2026-04-20 21:55:25,577 [INFO] [54/1000] Geely Azkarra (4129a24f) → silver | https://dubai.dubizzle.com/motors/used-cars/geely/azkarra/2026/3/17/4wd-15-engine-full-options-export-price-2-303---4129a24ff16143adbbb794de796e1457/
+2026-04-20 21:55:28,044 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:28,046 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:31,577 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:32,126 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.e22e3bd9-6928-4ac1-9e82-46ac6bf18569 "HTTP/2 200 OK"
+2026-04-20 21:55:32,128 [INFO] [55/1000] Kia KX1 (1241f9cb) → white | https://dubai.dubizzle.com/motors/used-cars/kia/kx1/2026/1/30/2025-kia-kx1-14l-cvt-with-sun-roof-2-777---1241f9cbc12e40c690aef6adb9f3ba3e/
+2026-04-20 21:55:34,512 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:34,513 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:37,890 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:38,264 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.f06a6e57-c063-4bce-9f4a-e8e7b5dd5647 "HTTP/2 200 OK"
+2026-04-20 21:55:38,266 [INFO] [56/1000] Nissan Magnite (b23592a5) → white | https://dubai.dubizzle.com/motors/used-cars/nissan/magnite/2026/4/16/nissan-magnite-acenta-10l-turbo-cvt-model--2-834---b23592a5d6394852ab2a2e918d6620c1/
+2026-04-20 21:55:40,254 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:40,255 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:43,892 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:44,254 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.7e6a1202-c945-494d-bb3e-528fd986d5f7 "HTTP/2 200 OK"
+2026-04-20 21:55:44,257 [INFO] [57/1000] Hyundai Creta (30376da4) → white | https://dubai.dubizzle.com/motors/used-cars/hyundai/creta/2026/4/15/hyundai-creta-15l-comfort-2026-brand-new-e-2-580---30376da4d54447578a1e334ca98f7f17/
+2026-04-20 21:55:46,725 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:46,725 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:50,538 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:50,964 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.ab3cbc62-988a-40e0-a2e3-06b9cf1e5ab1 "HTTP/2 200 OK"
+2026-04-20 21:55:50,965 [INFO] [58/1000] Nissan X-Trail (0a720a89) → white | https://dubai.dubizzle.com/motors/used-cars/nissan/x-trail/2025/12/18/x-trail-t33-25l-x-tronic-cvt-2row-2wd-for--2-578---0a720a89761e418d9875d60eda5730ff/
+2026-04-20 21:55:53,385 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:53,386 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:55:57,074 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:55:57,444 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.22d75ba3-c28c-4b75-81bd-6893886b57c5 "HTTP/2 200 OK"
+2026-04-20 21:55:57,447 [INFO] [59/1000] Toyota Raize (fb4f8c71) → white | https://dubai.dubizzle.com/motors/used-cars/toyota/raize/2026/4/16/toyota-raize-g-10l-turbo-2025-brand-new-gc-2-572---fb4f8c71d14e4e47846e6f7e783e7346/
+2026-04-20 21:55:59,416 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:55:59,416 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:56:02,975 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:56:03,286 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.770791a3-5a05-4801-b20a-e3912b662fcf "HTTP/2 200 OK"
+2026-04-20 21:56:03,288 [INFO] [60/1000] Mitsubishi L200 (9db5fabc) → black | https://dubai.dubizzle.com/motors/used-cars/mitsubishi/l200/2025/12/20/mitsubishi-l200-2wd-model-2023-new-car-die-2-654---9db5fabc09aa4a22a193ba2c4ffe9481/
+2026-04-20 21:56:05,684 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:05,685 [INFO] Retrying request to /openai/v1/chat/completions in 3.000000 seconds
+2026-04-20 21:56:10,195 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+2026-04-20 21:56:10,521 [INFO] HTTP Request: PATCH https://vsagrslaozkswvtoxkbb.supabase.co/rest/v1/car_listings?id=eq.aea671d4-b6d9-410f-a5ad-ff03fda17285 "HTTP/2 200 OK"
+2026-04-20 21:56:10,524 [INFO] [61/1000] Chevrolet Captiva (980976f8) → white | https://dubai.dubizzle.com/motors/used-cars/chevrolet/captiva/2026/3/22/2025-chevrolet-captiva-gcc-specs-brand-new-2-140---980976f894fb413ebe5741408f717173/
+2026-04-20 21:56:12,618 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:12,620 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499380, Requested 2500. Please try again in 5m24.864s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:12,620 [INFO] [62/1000] MG HS (653726bc): unable to determine | https://dubai.dubizzle.com/motors/used-cars/mg/hs/2026/3/23/mg-hs-20t-2024-gcc-specs-brand-new-2-625---653726bc4a714075a9d4b43703841438/
+2026-04-20 21:56:15,085 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:15,087 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499366, Requested 2500. Please try again in 5m22.4448s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:15,087 [INFO] [63/1000] Jetour X70 Plus (205ce1b6): unable to determine | https://dubai.dubizzle.com/motors/used-cars/jetour/x70-plus/2026/1/14/2026-brand-new-jetour-x70plus-ii-gcc-ii-6--2-316---205ce1b66bae4ae9845118938914ece3/
+2026-04-20 21:56:17,479 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:17,481 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499352, Requested 2500. Please try again in 5m20.0256s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:17,481 [INFO] [64/1000] Changan CS75 Plus (b95ce3e1): unable to determine | https://dubai.dubizzle.com/motors/used-cars/changan/cs75-plus/2026/4/6/new-2025-changan-cs75-plus-chinese-specs-a-2-637---b95ce3e1c6314d38a8c8d8949faea990/
+2026-04-20 21:56:19,849 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:19,852 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499338, Requested 2500. Please try again in 5m17.6064s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:19,852 [INFO] [65/1000] Kia Seltos (27739d8f): unable to determine | https://dubai.dubizzle.com/motors/used-cars/kia/seltos/2026/2/16/kia-seltos-15l-luxury-2-407---27739d8feaee498dade57a794c1233d5/
+2026-04-20 21:56:22,345 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:22,347 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499324, Requested 2500. Please try again in 5m15.1872s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:22,347 [INFO] [66/1000] Kia Carens (27ca9d3e): unable to determine | https://dubai.dubizzle.com/motors/used-cars/kia/carens/2026/4/16/kia-carens-15-cc-model-2025-gcc-2-673---27ca9d3ee41d426690747ab3c50223d9/
+2026-04-20 21:56:24,828 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:24,830 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499310, Requested 2500. Please try again in 5m12.768s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:24,830 [INFO] [67/1000] Peugeot Landtrek (1022cabc): unable to determine | https://dubai.dubizzle.com/motors/used-cars/peugeot/landtrek/2025/12/21/aed-1081-emi-for-5yrs-peugeot-landtrek-4wd-2-942---1022cabc749a4303963f447ce19d3fa3/
+2026-04-20 21:56:26,998 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:26,999 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499297, Requested 2500. Please try again in 5m10.5216s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:26,999 [INFO] [68/1000] BYD Destroyer 05 (9910cfe2): unable to determine | https://dubai.dubizzle.com/motors/used-cars/byd/destroyer-05/2026/4/2/byd-destroyer-05-55km-luxury-edition-chine-2-134---9910cfe284f64bc8b4d09b79e0ec0e4e/
+2026-04-20 21:56:29,337 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:29,339 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499283, Requested 2499. Please try again in 5m7.9296s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:29,339 [INFO] [69/1000] Brilliance V6 (a2868e2b): unable to determine | https://dubai.dubizzle.com/motors/used-cars/brilliance/v6/2025/3/24/brilliance-v6-2025-15l-turbo-fully-loaded-2-707---a2868e2b72c34ef68ed66222ec717a44/
+2026-04-20 21:56:31,386 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:31,387 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499272, Requested 2500. Please try again in 5m6.2016s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:31,387 [INFO] [70/1000] BYD Seal (93a933f7): unable to determine | https://dubai.dubizzle.com/motors/used-cars/byd/seal/2026/1/30/brand-bew-byd-seal-05-55km-big-battery-2-541---93a933f7f03045d8b7ab19afb537ff8e/
+2026-04-20 21:56:33,364 [INFO] HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 429 Too Many Requests"
+2026-04-20 21:56:33,366 [WARNING]   groq failed (RateLimitError: Error code: 429 - {'error': {'message': 'Rate limit reached for model `meta-llama/llama-4-scout-17b-16e-instruct` in organization `org_01kpnyee7mf25t5zknwfn0w09k` service tier `on_demand` on tokens per day (TPD): Limit 500000, Used 499260, Requested 2500. Please try again in 5m4.128s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}})
+2026-04-20 21:56:33,366 [INFO] [71/1000] Toyota Rav 4 (6e3e79ee): unable to determine | https://dubai.dubizzle.com/motors/used-cars/toyota/rav-4/2024/3/15/2023-toyota-rav4-hybrid-25l-2-240---6e3e79ee394b452a9000c3207b1502f4/
+2026-04-20 21:56:33,366 [ERROR] 10 consecutive failures — likely rate-limited. Stopping after ok=61 fail=10.
+2026-04-20 21:56:33,366 [INFO] Done. ok=61 fail=10 attempted=71

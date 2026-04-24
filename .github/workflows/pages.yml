@@ -1,0 +1,55 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch: {}
+
+# GitHub Pages deploy requires these perms.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialise deploys so a slow one doesn't collide with a newer push.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject Supabase credentials from repo secrets
+        env:
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::SUPABASE_URL and SUPABASE_ANON_KEY must be set as repo secrets."
+            exit 1
+          fi
+          # | delimiter because URL and JWT contain / and + characters.
+          sed -i "s|YOUR_SUPABASE_URL_HERE|${SUPABASE_URL}|g"      web/index.html
+          sed -i "s|YOUR_SUPABASE_ANON_KEY_HERE|${SUPABASE_ANON_KEY}|g" web/index.html
+          echo "Injected — first few chars of key: ${SUPABASE_ANON_KEY:0:12}…"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site as Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        name: Deploy to Pages
+        uses: actions/deploy-pages@v4

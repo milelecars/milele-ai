@@ -76,7 +76,13 @@ ALLOWED_KEYS = TEXT_FIELDS | INT_FIELDS | BOOL_FIELDS | frozenset(RANGE_FIELDS)
 # Gemini — natural language → filter dict
 # ────────────────────────────────────────────────────────────────────────────
 
-GEMINI_MODEL = "gemini-2.5-flash-lite"
+# Fallback chain of Gemini models. Each model has its OWN 20 RPD free-tier
+# bucket (quota is PerModel), so when the first 429s we transparently try
+# the next. GEMINI_MODEL can be a single name OR a comma-separated list.
+_raw_models = os.environ.get(
+    "GEMINI_MODEL", "gemini-2.5-flash,gemini-2.5-flash-lite"
+)
+GEMINI_MODELS = [m.strip() for m in _raw_models.split(",") if m.strip()]
 
 SYSTEM_PROMPT = f"""
 You are a filter extractor for a car marketplace database. Convert the
@@ -122,24 +128,50 @@ Examples:
 """.strip()
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    """True for 429 / ResourceExhausted / quota-style errors worth retrying on
+    a different model."""
+    name = type(exc).__name__
+    if "ResourceExhausted" in name or "429" in name:
+        return True
+    msg = str(exc).lower()
+    return any(
+        t in msg for t in ("429", "quota", "rate limit", "resource_exhausted")
+    )
+
+
 def extract_filters(user_text: str) -> dict:
-    """Call Gemini, return a whitelisted filter dict. Never raises."""
-    try:
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        resp = model.generate_content(
-            [SYSTEM_PROMPT, f"in: {user_text}\nout:"],
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.1,
-            },
-        )
-        parsed = json.loads((resp.text or "").strip())
-        if not isinstance(parsed, dict):
+    """Call Gemini (with cross-model fallback on quota errors), return a
+    whitelisted filter dict. Never raises."""
+    last_err: Optional[Exception] = None
+    for i, model_name in enumerate(GEMINI_MODELS):
+        try:
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(
+                [SYSTEM_PROMPT, f"in: {user_text}\nout:"],
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "temperature": 0.1,
+                },
+            )
+            parsed = json.loads((resp.text or "").strip())
+            if not isinstance(parsed, dict):
+                return {}
+            if i > 0:
+                logger.info(f"fallback success on {model_name}")
+            return {k: v for k, v in parsed.items() if k in ALLOWED_KEYS}
+        except Exception as e:
+            last_err = e
+            # Only fall through to the next model on quota-type errors.
+            if _is_quota_error(e) and i < len(GEMINI_MODELS) - 1:
+                logger.info(
+                    f"{model_name} quota exhausted — trying {GEMINI_MODELS[i + 1]}"
+                )
+                continue
+            logger.warning(f"Gemini extraction failed ({model_name}): {e}")
             return {}
-        return {k: v for k, v in parsed.items() if k in ALLOWED_KEYS}
-    except Exception as e:
-        logger.warning(f"Gemini extraction failed: {e}")
-        return {}
+    logger.warning(f"All Gemini models exhausted: {last_err}")
+    return {}
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -400,8 +432,8 @@ def main():
     client = get_client(sb_url, sb_key)
 
     logger.info(
-        f"Bot starting — model={GEMINI_MODEL}, limit={limit}, "
-        f"allowlist={'on' if allow else 'off'}"
+        f"Bot starting — models={GEMINI_MODELS} (in fallback order), "
+        f"limit={limit}, allowlist={'on' if allow else 'off'}"
     )
 
     offset = 0
