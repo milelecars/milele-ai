@@ -129,14 +129,62 @@
     transition: transform 0.1s, border-color 0.1s;
   }
   .card:hover { border-color: var(--accent); transform: translateY(-2px); }
-  .card-img {
+  /* Carousel inside each card */
+  .card-carousel {
+    position: relative;
     aspect-ratio: 16 / 10;
     background: #0a0e13;
-    background-size: cover;
-    background-position: center;
-    position: relative;
+    overflow: hidden;
   }
-  .card-img .tag {
+  .card-track {
+    display: flex;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    scrollbar-width: none;             /* Firefox */
+  }
+  .card-track::-webkit-scrollbar { display: none; } /* WebKit */
+  .card-track img {
+    flex: 0 0 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    scroll-snap-align: start;
+    user-select: none;
+    background: #0a0e13;
+  }
+  .card-nav {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .card-nav.prev { left: 6px; }
+  .card-nav.next { right: 6px; }
+  .card:hover .card-nav { opacity: 1; }
+  .card-nav:hover { background: rgba(0,0,0,0.85); }
+  .card-counter {
+    position: absolute;
+    bottom: 6px; right: 8px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    pointer-events: none;
+  }
+  .card-tag {
     position: absolute; top: 8px; left: 8px;
     background: rgba(0,0,0,0.7);
     color: white;
@@ -145,8 +193,12 @@
     border-radius: 4px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    pointer-events: none;
   }
-  .card-img .tag.warranty { background: var(--success); color: #000; }
+  .card-tag.warranty {
+    background: var(--success); color: #000;
+    left: auto; right: 8px;
+  }
   .card-body { padding: 14px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
   .card h3 {
     margin: 0;
@@ -201,6 +253,159 @@
     border-radius: 3px;
     font-size: 12px;
   }
+
+  /* Modal */
+  .modal {
+    position: fixed; inset: 0;
+    display: flex; align-items: flex-start; justify-content: center;
+    z-index: 50;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .modal[hidden] { display: none; }
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+  }
+  .modal-panel {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 920px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-close {
+    position: absolute; top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2;
+  }
+  .modal-close:hover { background: rgba(0,0,0,0.8); }
+  .modal-gallery {
+    background: #0a0e13;
+  }
+  .modal-main-img {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    display: block;
+    background: #0a0e13;
+  }
+  .modal-thumbs {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    overflow-x: auto;
+    background: #0a0e13;
+  }
+  .modal-thumbs img {
+    width: 72px; height: 54px;
+    object-fit: cover;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.1s;
+    flex-shrink: 0;
+  }
+  .modal-thumbs img:hover,
+  .modal-thumbs img.active { opacity: 1; }
+  .modal-body { padding: 24px 28px 28px; }
+  .modal-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .modal-header h2 {
+    margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.3px;
+    line-height: 1.25;
+  }
+  .modal-price {
+    color: var(--accent);
+    font-size: 24px; font-weight: 700;
+    white-space: nowrap;
+  }
+  .modal-badges {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge.new     { background: var(--accent); color: white; border-color: var(--accent); }
+  .badge.warranty { background: var(--success); color: #000; border-color: var(--success); }
+  .modal-sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 32px;
+  }
+  @media (max-width: 640px) {
+    .modal-sections { grid-template-columns: 1fr; }
+  }
+  .modal-sections section { min-width: 0; }
+  .modal-sections h3 {
+    margin: 0 0 10px;
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-sections dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-size: 14px;
+  }
+  .modal-sections dt { color: var(--muted); white-space: nowrap; }
+  .modal-sections dd { margin: 0; color: var(--text); word-break: break-word; }
+
+  .modal-features {
+    display: grid; gap: 12px;
+  }
+  .feature-cat { }
+  .feature-cat-name {
+    font-size: 12px; font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .feature-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .feature-chips span {
+    font-size: 12px;
+    background: #2a3340;
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: var(--text);
+  }
+  .modal-description {
+    font-size: 14px;
+    white-space: pre-wrap;
+    color: var(--text);
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 8px;
+    border-left: 3px solid var(--border);
+    padding-left: 12px;
+    line-height: 1.6;
+  }
+  .modal-section-full { grid-column: 1 / -1; }
 </style>
 </head>
 <body>
@@ -226,7 +431,7 @@
         <input id="f-make" type="text" placeholder="any" list="makes-list">
       </label>
       <label>Model
-        <input id="f-model" type="text" placeholder="any">
+        <input id="f-model" type="text" placeholder="any" list="models-list">
       </label>
       <label>Year
         <div class="range-row">
@@ -260,7 +465,7 @@
         </select>
       </label>
       <label>Color
-        <input id="f-color" type="text" placeholder="any">
+        <input id="f-color" type="text" placeholder="any" list="colors-list">
       </label>
       <label>Emirate
         <select id="f-emirate">
@@ -308,8 +513,55 @@
   </section>
 </main>
 
-<!-- Autocomplete source — populated once from the DB -->
+<!-- Autocomplete sources — populated once from the DB on page load -->
 <datalist id="makes-list"></datalist>
+<datalist id="models-list"></datalist>
+<datalist id="colors-list"></datalist>
+
+<!-- Listing detail modal (hidden until a card is clicked) -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-backdrop" data-close></div>
+  <article class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <button class="modal-close" data-close aria-label="Close">✕</button>
+    <div class="modal-gallery">
+      <img id="modal-main-img" class="modal-main-img" alt="">
+      <div id="modal-thumbs" class="modal-thumbs"></div>
+    </div>
+    <div class="modal-body">
+      <header class="modal-header">
+        <h2 id="modal-title">—</h2>
+        <div id="modal-price" class="modal-price">—</div>
+      </header>
+      <div id="modal-badges" class="modal-badges"></div>
+      <div class="modal-sections">
+        <section>
+          <h3>Overview</h3>
+          <dl id="modal-overview"></dl>
+        </section>
+        <section>
+          <h3>Condition</h3>
+          <dl id="modal-condition"></dl>
+        </section>
+        <section>
+          <h3>Colors</h3>
+          <dl id="modal-colors"></dl>
+        </section>
+        <section>
+          <h3>Location & Dealer</h3>
+          <dl id="modal-dealer"></dl>
+        </section>
+        <section id="modal-features-section" class="modal-section-full" hidden>
+          <h3>Features</h3>
+          <div id="modal-features" class="modal-features"></div>
+        </section>
+        <section id="modal-description-section" class="modal-section-full" hidden>
+          <h3>Description</h3>
+          <div id="modal-description" class="modal-description"></div>
+        </section>
+      </div>
+    </div>
+  </article>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -339,22 +591,60 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 const setStatus = (msg) => { $("status").textContent = msg; };
 
-// Populate the make autocomplete once the page loads (single cheap query)
-async function loadMakes() {
+// Single cheap query on page load → populate every filter's dropdown
+// with the distinct values that actually exist in the DB. Fires once; the
+// actual search still only runs when the user clicks Search.
+async function loadFilterOptions() {
   try {
     const { data, error } = await sb
       .from("car_listings")
-      .select("make")
+      .select(
+        "make, model, color, interior_color, " +
+        "body_type, fuel_type, emirate"
+      )
       .eq("is_active", true)
-      .not("make", "is", null)
       .limit(5000);
     if (error) throw error;
-    const makes = [...new Set((data || []).map(r => r.make).filter(Boolean))].sort();
-    const dl = $("makes-list");
-    dl.innerHTML = makes.map(m => `<option value="${m}">`).join("");
+    const rows = data || [];
+
+    const uniqSorted = (col) => [...new Set(
+      rows.map(r => r[col]).filter(Boolean).map(s => String(s).trim())
+    )].sort((a, b) => a.localeCompare(b));
+
+    // Free-text datalists — user can still type anything, these just suggest.
+    fillDatalist("makes-list",  uniqSorted("make"));
+    fillDatalist("models-list", uniqSorted("model"));
+    // Colour filter matches across color + interior_color in the search;
+    // reflect that in the dropdown by merging both.
+    const colors = [...new Set([
+      ...rows.map(r => r.color).filter(Boolean),
+      ...rows.map(r => r.interior_color).filter(Boolean),
+    ].map(s => String(s).trim().toLowerCase()))].sort();
+    fillDatalist("colors-list", colors);
+
+    // Proper selects — replace the hard-coded option lists with what's
+    // actually present in the data (and keep "any" at the top).
+    fillSelect("f-body",    uniqSorted("body_type"));
+    fillSelect("f-fuel",    uniqSorted("fuel_type"));
+    fillSelect("f-emirate", uniqSorted("emirate"));
   } catch (e) {
-    console.warn("makes prefill failed (probably RLS):", e.message);
+    console.warn("filter prefill failed (check RLS):", e.message);
   }
+}
+
+function fillDatalist(id, opts) {
+  const dl = $(id);
+  if (!dl) return;
+  dl.innerHTML = opts.map(v => `<option value="${escapeHtml(v)}">`).join("");
+}
+
+function fillSelect(id, opts) {
+  const sel = $(id);
+  if (!sel) return;
+  const keep = sel.value;  // preserve any current selection
+  sel.innerHTML = '<option value="">any</option>' +
+    opts.map(v => `<option>${escapeHtml(v)}</option>`).join("");
+  if (keep) sel.value = keep;
 }
 
 function readFilters() {
@@ -381,15 +671,19 @@ function readFilters() {
   };
 }
 
+// Columns fetched for every search — includes everything the modal shows.
+const SEARCH_SELECT =
+  "external_id,url,make,model,trim,variant,year,body_type,fuel_type," +
+  "transmission,engine_cc,engine_capacity_cc_text,horsepower_text,cylinders," +
+  "doors,seating_capacity_text,mileage_km,condition,price_aed,price_aed_max," +
+  "price_negotiable,color,interior_color,target_market,emirate,area," +
+  "seller_type,dealer_name,warranty,posted_at,first_seen_at,last_seen_at," +
+  "last_changed_at,image_urls,description,features";
+
 function buildQuery(f) {
   let q = sb
     .from("car_listings")
-    .select(
-      "external_id,url,make,model,trim,variant,year,body_type,fuel_type," +
-      "transmission,mileage_km,price_aed,color,interior_color,emirate,area," +
-      "dealer_name,warranty,image_urls,first_seen_at",
-      { count: "exact" }
-    )
+    .select(SEARCH_SELECT, { count: "exact" })
     .eq("is_active", true);
 
   if (f.make)       q = q.ilike("make",  `%${f.make}%`);
@@ -431,8 +725,14 @@ function formatPrice(n) {
   catch { return "AED —"; }
 }
 
+// Keyed lookup of the most recent search results, so card clicks can
+// pull the full row without a second DB round-trip.
+const ROW_CACHE = new Map();
+
 function renderCard(row) {
-  const img = (row.image_urls && row.image_urls[0]) || "";
+  const imgs = (row.image_urls || []).filter(
+    u => typeof u === "string" && u.startsWith("http")
+  );
   const title = [
     row.year, row.make, row.model, row.trim,
   ].filter(Boolean).join(" ");
@@ -447,11 +747,30 @@ function renderCard(row) {
   const loc = [row.area, row.emirate].filter(Boolean).join(", ");
   if (loc) specs.push(loc);
 
+  // One <img> per slide. Only the first loads eagerly; the rest are lazy so
+  // 30 cards × 15 images doesn't all hit the network at once.
+  const slides = imgs.length
+    ? imgs.map((u, i) => `
+        <img src="${escapeHtml(u)}"
+             loading="${i === 0 ? 'eager' : 'lazy'}"
+             decoding="async"
+             alt="${escapeHtml(title)} — photo ${i + 1}">`).join("")
+    : `<img alt="no photo">`;
+
+  const navButtons = imgs.length > 1 ? `
+    <button class="card-nav prev" data-dir="-1" aria-label="Previous photo">‹</button>
+    <button class="card-nav next" data-dir="1"  aria-label="Next photo">›</button>
+    <div class="card-counter">1 / ${imgs.length}</div>
+  ` : "";
+
   return `
-    <div class="card">
-      <div class="card-img" style="background-image: url('${escapeHtml(img)}')">
-        ${row.condition === "new" ? '<span class="tag">NEW</span>' : ""}
-        ${row.warranty === true ? '<span class="tag warranty" style="right:8px;left:auto">Warranty</span>' : ""}
+    <div class="card" role="button" tabindex="0" data-ext="${escapeHtml(row.external_id)}"
+         aria-label="${escapeHtml(title || 'Listing')}">
+      <div class="card-carousel">
+        <div class="card-track">${slides}</div>
+        ${row.condition === "new" ? '<span class="card-tag">NEW</span>' : ""}
+        ${row.warranty === true ? '<span class="card-tag warranty">Warranty</span>' : ""}
+        ${navButtons}
       </div>
       <div class="card-body">
         <h3>${escapeHtml(title || "Listing")}</h3>
@@ -461,7 +780,6 @@ function renderCard(row) {
         </div>
         <div class="dealer">
           <span>${escapeHtml(row.dealer_name || "")}</span>
-          <a href="${escapeHtml(row.url || "#")}" target="_blank" rel="noopener">View on Dubizzle →</a>
         </div>
       </div>
     </div>
@@ -478,6 +796,10 @@ async function doSearch() {
     const { data, count, error } = await buildQuery(f);
     if (error) throw error;
     const rows = data || [];
+
+    // Refresh the row cache for the modal to look up on card click.
+    ROW_CACHE.clear();
+    for (const r of rows) ROW_CACHE.set(r.external_id, r);
 
     if (rows.length === 0) {
       results.innerHTML = '<div class="hint">No matches. Try relaxing a filter.</div>';
@@ -504,6 +826,192 @@ async function doSearch() {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// Modal (detail view)
+// ──────────────────────────────────────────────────────────────────────
+
+function fillDL(id, pairs) {
+  const el = $(id);
+  if (!el) return;
+  const keep = pairs.filter(([, v]) => v !== null && v !== undefined && v !== "");
+  el.innerHTML = keep.length
+    ? keep.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`).join("")
+    : `<dt>—</dt><dd>—</dd>`;
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  } catch { return null; }
+}
+
+function fmtPriceRange(row) {
+  const lo = row.price_aed;
+  const hi = row.price_aed_max;
+  if (lo == null && hi == null) return "—";
+  if (lo != null && hi != null && Number(lo) !== Number(hi)) {
+    return `AED ${Math.round(lo).toLocaleString()} – ${Math.round(hi).toLocaleString()}`;
+  }
+  return formatPrice(lo);
+}
+
+function openModal(row) {
+  const title = [row.year, row.make, row.model, row.trim].filter(Boolean).join(" ");
+  $("modal-title").textContent = title || "Listing";
+  $("modal-price").textContent = fmtPriceRange(row);
+
+  // Image gallery
+  const imgs = (row.image_urls || []).filter(u => typeof u === "string" && u.startsWith("http"));
+  const main = $("modal-main-img");
+  main.src = imgs[0] || "";
+  main.alt = title || "Listing photo";
+  const thumbs = $("modal-thumbs");
+  thumbs.innerHTML = imgs.slice(0, 20).map((u, i) =>
+    `<img src="${escapeHtml(u)}" data-idx="${i}" class="${i === 0 ? 'active' : ''}" alt="">`
+  ).join("");
+  thumbs.onclick = (e) => {
+    const t = e.target.closest("img[data-idx]");
+    if (!t) return;
+    main.src = t.src;
+    thumbs.querySelectorAll("img").forEach(el => el.classList.toggle("active", el === t));
+  };
+
+  // Badges
+  const badges = [];
+  if (row.condition) badges.push({ cls: row.condition === "new" ? "new" : "", text: row.condition });
+  if (row.warranty === true) badges.push({ cls: "warranty", text: "warranty" });
+  if (row.price_negotiable) badges.push({ cls: "", text: "negotiable" });
+  $("modal-badges").innerHTML = badges
+    .map(b => `<span class="badge ${b.cls}">${escapeHtml(b.text)}</span>`).join("");
+
+  // Overview
+  fillDL("modal-overview", [
+    ["Make",              row.make],
+    ["Model",             row.model],
+    ["Trim",              row.trim || row.variant],
+    ["Year",              row.year],
+    ["Body type",         row.body_type],
+    ["Fuel type",         row.fuel_type],
+    ["Transmission",      row.transmission],
+    ["Engine",            row.engine_capacity_cc_text || (row.engine_cc ? `${row.engine_cc} cc` : null)],
+    ["Horsepower",        row.horsepower_text],
+    ["Cylinders",         row.cylinders],
+    ["Doors",             row.doors],
+    ["Seating capacity",  row.seating_capacity_text],
+    ["Target market",     row.target_market],
+  ]);
+
+  // Condition
+  fillDL("modal-condition", [
+    ["Condition",     row.condition],
+    ["Mileage (km)",  row.mileage_km != null ? Number(row.mileage_km).toLocaleString() : null],
+    ["Warranty",      row.warranty == null ? null : (row.warranty ? "Yes" : "No")],
+    ["Posted",        fmtDate(row.posted_at)],
+    ["First seen",    fmtDate(row.first_seen_at)],
+    ["Last updated",  fmtDate(row.last_changed_at)],
+  ]);
+
+  // Colors
+  fillDL("modal-colors", [
+    ["Exterior", row.color],
+    ["Interior", row.interior_color],
+  ]);
+
+  // Dealer + location
+  fillDL("modal-dealer", [
+    ["Dealer",      row.dealer_name],
+    ["Seller type", row.seller_type],
+    ["Area",        row.area],
+    ["Emirate",     row.emirate],
+  ]);
+
+  // Features (grouped accordion categories)
+  const featWrap = $("modal-features");
+  const featSec = $("modal-features-section");
+  const features = row.features && typeof row.features === "object" ? row.features : {};
+  const catEntries = Object.entries(features).filter(([, list]) => Array.isArray(list) && list.length);
+  if (catEntries.length) {
+    featSec.hidden = false;
+    featWrap.innerHTML = catEntries.map(([cat, list]) => {
+      const niceName = cat.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      return `
+        <div class="feature-cat">
+          <div class="feature-cat-name">${escapeHtml(niceName)}</div>
+          <div class="feature-chips">${list.map(f => `<span>${escapeHtml(f)}</span>`).join("")}</div>
+        </div>
+      `;
+    }).join("");
+  } else {
+    featSec.hidden = true;
+    featWrap.innerHTML = "";
+  }
+
+  // Description
+  const desc = $("modal-description");
+  const descSec = $("modal-description-section");
+  if (row.description && String(row.description).trim()) {
+    descSec.hidden = false;
+    desc.textContent = row.description;
+  } else {
+    descSec.hidden = true;
+    desc.textContent = "";
+  }
+
+  $("modal").hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal() {
+  $("modal").hidden = true;
+  document.body.style.overflow = "";
+}
+
+// Card-carousel: prev / next buttons. Stops the click from bubbling up to
+// the card handler that opens the modal.
+document.addEventListener("click", (e) => {
+  const nav = e.target.closest(".card-nav");
+  if (!nav) return;
+  e.stopPropagation();
+  const track = nav.parentElement.querySelector(".card-track");
+  if (!track) return;
+  const dir = Number(nav.dataset.dir || "1");
+  track.scrollBy({ left: dir * track.clientWidth, behavior: "smooth" });
+}, true);
+
+// Keep the "N / total" counter in sync as the user scrolls / swipes.
+document.addEventListener("scroll", (e) => {
+  const track = e.target;
+  if (!track.classList || !track.classList.contains("card-track")) return;
+  const counter = track.parentElement.querySelector(".card-counter");
+  if (!counter) return;
+  const total = track.children.length;
+  const idx = Math.round(track.scrollLeft / track.clientWidth) + 1;
+  counter.textContent = `${Math.min(Math.max(idx, 1), total)} / ${total}`;
+}, true);
+
+// Card click → open modal (ignored when the click was on a carousel arrow)
+document.addEventListener("click", (e) => {
+  if (e.target.closest("[data-close]")) { closeModal(); return; }
+  if (e.target.closest(".card-nav")) return;  // already handled
+  const card = e.target.closest(".card[data-ext]");
+  if (card) {
+    const row = ROW_CACHE.get(card.dataset.ext);
+    if (row) openModal(row);
+  }
+});
+
+// Keyboard: Enter/Space on a card opens modal, Escape closes it
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("modal").hidden) { closeModal(); return; }
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("card")) {
+    e.preventDefault();
+    const row = ROW_CACHE.get(e.target.dataset.ext);
+    if (row) openModal(row);
+  }
+});
+
 function resetFilters() {
   document.querySelectorAll(".filter-grid input, .filter-grid select")
     .forEach(el => { el.value = ""; });
@@ -520,8 +1028,8 @@ document.querySelector(".filters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") doSearch();
 });
 
-// Prefill the Make dropdown on load
-loadMakes();
+// Prefill every filter's dropdown on load (single query to the DB)
+loadFilterOptions();
 </script>
 </body>
 </html>
