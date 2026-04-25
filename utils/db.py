@@ -152,6 +152,9 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
         return {"new": 0, "updated": 0, "skipped": 0}
 
     counts = {"new": 0, "updated": 0, "skipped": 0}
+    # External IDs that diffed on hash — caller (dubizzle._run) feeds these
+    # into the detail-enrichment queue so updated rows get fresh image URLs.
+    updated_external_ids: set[str] = set()
     source = listings[0]["source"]
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -193,6 +196,7 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             listing["is_active"] = True
             changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
             counts["updated"] += 1
+            updated_external_ids.add(ext_id)
 
         elif listing.get("detail_scraped_at"):
             # List-level hash matches, but detail was freshly scraped this
@@ -249,6 +253,7 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
                 .in_("id", chunk)
             )
 
+    counts["updated_external_ids"] = updated_external_ids
     return counts
 
 

@@ -244,6 +244,11 @@ def _build_notification(results: list[dict]) -> tuple[str, bool]:
 def send_telegram(bot_token: str, chat_id: str, text: str):
     """Send a plain-text message via the Telegram Bot API."""
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    # Telegram caps a single message at 4096 chars. Keep a small margin for
+    # the truncation marker; full digests can blow past 4096 on busy days.
+    MAX = 4000
+    if len(text) > MAX:
+        text = text[:MAX] + "\n…[truncated — see full digest in Supabase logs]"
     try:
         resp = _requests.post(
             url,

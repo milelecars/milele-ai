@@ -469,6 +469,22 @@ class DubizzleScraper(BaseScraper):
             try:
                 for seg_i, search_url in enumerate(segments, 1):
                     seg_tag = f"seg {seg_i}/{len(segments)}"
+                    # Fresh context between segments. Without this, the browser
+                    # session that crawled segs 1-3 carries enough fingerprint
+                    # for Dubizzle to soft-degrade seg 4's SSR — the page
+                    # loads (no Imperva interstitial) but JSON-LD never
+                    # populates. Cheap to do; ~5-10 s per segment.
+                    if seg_i > 1:
+                        try:
+                            page = self._rotate_detail_context(
+                                page, browser, proxy_dict,
+                                reason=f"fresh session before {seg_tag}",
+                                cooldown=(3, 8),
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"[dubizzle] inter-segment rotation failed: {e}"
+                            )
                     logger.info(f"[dubizzle] {seg_tag} page 1 — {search_url}")
                     if not load_page(search_url, cold=True):
                         logger.error(
@@ -565,6 +581,24 @@ class DubizzleScraper(BaseScraper):
                             f"[{self.SOURCE}] intermediate list upsert: "
                             f"{self._intermediate_upsert_counts}"
                         )
+                        # Feed updated rows into the detail queue so their
+                        # image_urls (and other detail fields) get refreshed
+                        # this run, not just on the next refresh_images sweep.
+                        if detail_plan is not None:
+                            updated_ids = (
+                                self._intermediate_upsert_counts.get(
+                                    "updated_external_ids"
+                                ) or set()
+                            )
+                            if updated_ids:
+                                detail_plan["backfill_external_ids"] = (
+                                    (detail_plan.get("backfill_external_ids") or set())
+                                    | updated_ids
+                                )
+                                logger.info(
+                                    f"[{self.SOURCE}] detail queue: +{len(updated_ids)} "
+                                    f"updated rows queued for image refresh"
+                                )
                     except Exception as e:
                         logger.warning(
                             f"[{self.SOURCE}] intermediate upsert failed ({e}); "
