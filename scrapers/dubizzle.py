@@ -533,6 +533,35 @@ class DubizzleScraper(BaseScraper):
                             except Exception:
                                 pass
 
+                        # Last-resort retry: rotate context and reload this
+                        # exact page. SSR degradation accumulates over many
+                        # requests in the same session, so a fresh context
+                        # often unblocks mid-segment pages that come back
+                        # empty (observed on seg 3 page 16, where the UI
+                        # has 556 ads / ~22 pages but page 16 returned 0).
+                        if not items:
+                            try:
+                                logger.info(
+                                    f"[dubizzle] {seg_tag} page {page_num} empty — "
+                                    f"rotating context and retrying once"
+                                )
+                                page = self._rotate_detail_context(
+                                    page, browser, proxy_dict,
+                                    reason=f"mid-segment empty at {seg_tag} page {page_num}",
+                                    cooldown=(5, 12),
+                                )
+                                retry_url = (
+                                    search_url if page_num == 1
+                                    else f"{search_url}&page={page_num}"
+                                )
+                                if load_page(retry_url, cold=True):
+                                    self._scroll_like_human(page)
+                                    items = page.evaluate(_LISTINGS_JS) or []
+                            except Exception as e:
+                                logger.warning(
+                                    f"[dubizzle] post-rotation retry failed: {e}"
+                                )
+
                         logger.info(
                             f"[dubizzle] {seg_tag} page {page_num}: {len(items)} items"
                         )
