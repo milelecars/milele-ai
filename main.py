@@ -248,7 +248,10 @@ def send_telegram(bot_token: str, chat_id: str, text: str):
     # the truncation marker; full digests can blow past 4096 on busy days.
     MAX = 4000
     if len(text) > MAX:
-        text = text[:MAX] + "\n…[truncated — see full digest in Supabase logs]"
+        text = (
+            text[:MAX]
+            + "\n…[truncated — query car_listing_changes for full diff]"
+        )
     try:
         resp = _requests.post(
             url,

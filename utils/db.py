@@ -435,6 +435,32 @@ def build_change_digest(
         except (TypeError, ValueError):
             return "AED ?"
 
+    def _short(v, max_len: int = 80) -> str:
+        """Render any field value compactly for the digest."""
+        if v is None:
+            return "∅"
+        if isinstance(v, (list, tuple, set)):
+            n = len(v)
+            return f"[{n} item{'s' if n != 1 else ''}]"
+        if isinstance(v, dict):
+            return f"{{{len(v)} keys}}"
+        s = str(v).replace("\n", " ").strip()
+        return s if len(s) <= max_len else s[: max_len - 1] + "…"
+
+    def _fmt_field_diff(field: str, old, new) -> str:
+        if field == "price_aed":
+            try:
+                pct = (float(new) - float(old)) / float(old) * 100
+                return f"price: {_money(old)} → {_money(new)} ({pct:+.1f}%)"
+            except (TypeError, ValueError, ZeroDivisionError):
+                return f"price: {_money(old)} → {_money(new)}"
+        if field == "mileage_km":
+            try:
+                return f"mileage: {int(float(old)):,} km → {int(float(new)):,} km"
+            except (TypeError, ValueError):
+                return f"mileage: {old} → {new}"
+        return f"{field}: {_short(old)} → {_short(new)}"
+
     def _fmt_new(c: dict) -> str:
         l = listings[c["listing_id"]]
         bits = [f"• {_header(l)}"]
@@ -443,7 +469,7 @@ def build_change_digest(
         loc = _loc(l)
         if loc:
             bits.append(f"({loc})")
-        line = " ".join(bits)
+        line = " ".join(bits) + f"\n  id: {l['id']}"
         if l.get("url"):
             line += f"\n  {l['url']}"
         return line
@@ -451,21 +477,16 @@ def build_change_digest(
     def _fmt_update(c: dict) -> str:
         l = listings[c["listing_id"]]
         cf = c.get("changed_fields") or {}
-        line = f"• {_header(l)}"
-        if "price_aed" in cf:
-            old = cf["price_aed"].get("old")
-            new = cf["price_aed"].get("new")
-            try:
-                pct = (float(new) - float(old)) / float(old) * 100
-                line += f": {_money(old)} → {_money(new)} ({pct:+.1f}%)"
-            except (TypeError, ValueError, ZeroDivisionError):
-                line += f": {_money(old)} → {_money(new)}"
-        elif "mileage_km" in cf:
-            old = cf["mileage_km"].get("old") or 0
-            new = cf["mileage_km"].get("new") or 0
-            line += f": {int(old):,} km → {int(new):,} km"
-        elif cf:
-            line += f": {', '.join(sorted(cf.keys()))} changed"
+        line = f"• {_header(l)}\n  id: {l['id']}"
+        if cf:
+            # Sort price/mileage first since those matter most to sales.
+            order = sorted(
+                cf.keys(),
+                key=lambda k: (k != "price_aed", k != "mileage_km", k),
+            )
+            for f in order:
+                entry = cf[f] or {}
+                line += "\n  " + _fmt_field_diff(f, entry.get("old"), entry.get("new"))
         if l.get("url"):
             line += f"\n  {l['url']}"
         return line
@@ -475,7 +496,7 @@ def build_change_digest(
         bits = [f"• {_header(l)}"]
         if l.get("price_aed") is not None:
             bits.append(f"(was {_money(l['price_aed'])})")
-        line = " ".join(bits)
+        line = " ".join(bits) + f"\n  id: {l['id']}"
         if l.get("url"):
             line += f"\n  {l['url']}"
         return line
