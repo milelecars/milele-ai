@@ -175,7 +175,12 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
 
     to_insert = []
     to_touch_ids = []  # only last_seen_at update needed
-    changed: list[tuple[str, dict, str]] = []  # (old_id, new_listing, old_hash)
+    # Each tuple: (old_id, new_listing, old_hash, hash_changed)
+    # hash_changed=True  → real list-level diff detected at routing time;
+    #                       always counted/logged.
+    # hash_changed=False → routed in only because detail_scraped_at is set;
+    #                       counted/logged only if actual fields differ.
+    changed: list[tuple[str, dict, str, bool]] = []
 
     for raw in listings:
         ext_id = raw["external_id"]
@@ -194,17 +199,18 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
         elif existing[ext_id]["content_hash"] != new_hash:
             listing["last_changed_at"] = now_iso
             listing["is_active"] = True
-            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
+            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"], True))
             counts["updated"] += 1
             updated_external_ids.add(ext_id)
 
         elif listing.get("detail_scraped_at"):
             # List-level hash matches, but detail was freshly scraped this
             # run. Route through the per-row update path so detail fields
-            # persist (the bulk-touch path only writes last_seen_at).
+            # persist. Counter + change log are deferred to the loop below
+            # so we only count/log when real fields differ — empty-diff
+            # detail re-entries no longer pollute the digest.
             listing["is_active"] = True
-            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"]))
-            counts["updated"] += 1
+            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"], False))
 
         else:
             to_touch_ids.append(existing[ext_id]["id"])
@@ -227,12 +233,27 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
                 old_rows[r["id"]] = r
 
         logger.info(f"[{source}] upsert: applying {len(changed)} updates")
-        for old_id, listing, old_hash in changed:
+        for old_id, listing, old_hash, hash_changed in changed:
             _safe_exec(
                 client.table("car_listings").update(listing).eq("id", old_id)
             )
             changed_fields = _diff(old_rows.get(old_id, {}), listing)
-            _log_change(client, old_id, "updated", old_hash, listing["content_hash"], changed_fields)
+            if hash_changed:
+                # Real list-level diff — already counted at routing time.
+                _log_change(
+                    client, old_id, "updated", old_hash,
+                    listing["content_hash"], changed_fields,
+                )
+            elif changed_fields:
+                # Detail-only re-entry that actually moved fields (e.g.
+                # detail page provided fresher image_urls). Count + log now.
+                _log_change(
+                    client, old_id, "updated", old_hash,
+                    listing["content_hash"], changed_fields,
+                )
+                counts["updated"] += 1
+                updated_external_ids.add(listing["external_id"])
+            # else: silent no-op write — no log row, no counter bump.
 
     # Bulk insert all new listings
     if to_insert:
@@ -339,6 +360,14 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
 # Number of consecutive missed runs before a listing becomes a verification
 # candidate. 2 = first miss is grace, second miss triggers URL check.
 MISS_GRACE_THRESHOLD = 2
+
+# Number of consecutive missed runs after which a listing is force-deleted
+# without URL verification. Bounds the cost of listings whose verification
+# never resolves to a clean "dead"/"alive" answer (e.g. Imperva keeps
+# blocking the verify, page redirects in a way we can't classify, etc.).
+# At ~1 run/day, 30 ≈ a month of consecutive misses — strong enough signal
+# that the listing is gone even without an explicit not-found marker.
+MISS_HARD_DELETE_THRESHOLD = 30
 
 
 def mark_missing(

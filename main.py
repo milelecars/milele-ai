@@ -43,7 +43,7 @@ import requests as _requests
 from utils.db import (
     get_client, upsert_listings, soft_delete_missing, log_run,
     get_detail_plan, build_change_digest,
-    mark_missing, soft_delete_verified,
+    mark_missing, soft_delete_verified, MISS_HARD_DELETE_THRESHOLD,
 )
 
 logging.basicConfig(
@@ -145,19 +145,53 @@ def run_source(name: str, client, dry_run: bool) -> dict:
         upsert_counts = upsert_listings(client, listings)
         counts.update(upsert_counts)
 
+        # The intermediate upsert (run from the scraper's list phase) catches
+        # real list-level diffs (price changes, new listings). The final pass
+        # above only adds detail-only diffs. Merge so the reported counters
+        # reflect both passes — otherwise price changes from the intermediate
+        # pass disappear from the Telegram report.
+        inter = getattr(scraper, "_intermediate_upsert_counts", None) or {}
+        if inter:
+            inter_updated = inter.get("updated_external_ids") or set()
+            final_updated = upsert_counts.get("updated_external_ids") or set()
+            counts["updated"] = len(inter_updated | final_updated)
+            # Intermediate inserts new rows; the final pass sees them as
+            # existing. Trust the intermediate's `new` count when present.
+            counts["new"] = inter.get("new", counts.get("new", 0))
+
         live_ids = {l["external_id"] for l in listings}
         if hasattr(scraper, "verify_dead_urls"):
             # Two-step delete with grace + URL verification.
             #   1. Bump missed_run_count for missing listings (first miss is
             #      grace, no action). Returns rows that have now missed
             #      MISS_GRACE_THRESHOLD runs in a row — verification candidates.
-            #   2. Ask the scraper to visit each candidate URL. Only those that
-            #      serve a confirmed "listing not found" page are returned.
-            #   3. Soft-delete the confirmed-dead set.
+            #   2. Split candidates: rows above MISS_HARD_DELETE_THRESHOLD bypass
+            #      verification (long-stuck "unknown" listings get force-deleted
+            #      to bound verify cost over time).
+            #   3. Ask the scraper to visit the remaining candidate URLs. Only
+            #      those that serve a confirmed "listing not found" page get
+            #      added to the dead set.
+            #   4. Soft-delete the union of (force-delete + verified-dead).
             miss = mark_missing(client, name, live_ids)
             candidates = miss["candidates"]
             if candidates:
-                dead_ids = scraper.verify_dead_urls(candidates) or set()
+                force_delete_ids = {
+                    c["external_id"] for c in candidates
+                    if c["missed_run_count"] >= MISS_HARD_DELETE_THRESHOLD
+                }
+                verify_candidates = [
+                    c for c in candidates
+                    if c["missed_run_count"] < MISS_HARD_DELETE_THRESHOLD
+                ]
+                if force_delete_ids:
+                    logger.info(
+                        f"[{name}] force-deleting {len(force_delete_ids)} "
+                        f"listings stuck above miss threshold "
+                        f"({MISS_HARD_DELETE_THRESHOLD})"
+                    )
+                dead_ids = set(force_delete_ids)
+                if verify_candidates:
+                    dead_ids |= (scraper.verify_dead_urls(verify_candidates) or set())
                 counts["deleted"] = soft_delete_verified(
                     client, name, dead_ids,
                     total_active=miss["total_active"],

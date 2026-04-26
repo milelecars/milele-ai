@@ -823,7 +823,7 @@ class DubizzleScraper(BaseScraper):
         which is already closed by the time main.py reaches the verify step).
 
         Env knobs:
-            DUBIZZLE_VERIFY_BATCH_SIZE   max URLs to verify per run (default 200)
+            DUBIZZLE_VERIFY_BATCH_SIZE   max URLs to verify per run (default 100)
             DUBIZZLE_VERIFY_ROTATE_EVERY context rotation interval  (default 25)
         """
         if not candidates:
@@ -839,13 +839,24 @@ class DubizzleScraper(BaseScraper):
             return set()
 
         try:
-            cap = int(os.environ.get("DUBIZZLE_VERIFY_BATCH_SIZE", "200"))
+            cap = int(os.environ.get("DUBIZZLE_VERIFY_BATCH_SIZE", "100"))
         except ValueError:
-            cap = 200
+            cap = 100
         try:
             rotate_every = int(os.environ.get("DUBIZZLE_VERIFY_ROTATE_EVERY", "25"))
         except ValueError:
             rotate_every = 25
+
+        # Warn (don't drop silently) on URL-less candidates so we can spot
+        # malformed rows that would otherwise stay stuck at miss_count forever.
+        no_url = [c for c in candidates if not c.get("url")]
+        if no_url:
+            logger.warning(
+                f"[{self.SOURCE}] verify_dead_urls: {len(no_url)} candidate(s) "
+                f"have no URL and cannot be verified — they will keep "
+                f"accumulating missed_run_count until force-deleted. "
+                f"Sample external_ids: {[c['external_id'] for c in no_url[:3]]}"
+            )
 
         targets = [c for c in candidates if c.get("url")][:cap]
         if not targets:
