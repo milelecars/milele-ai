@@ -155,6 +155,9 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     # External IDs that diffed on hash — caller (dubizzle._run) feeds these
     # into the detail-enrichment queue so updated rows get fresh image URLs.
     updated_external_ids: set[str] = set()
+    # External IDs of brand-new listings inserted this batch — main.py uses
+    # these to trigger inline color extraction via Groq vision.
+    new_external_ids: set[str] = set()
     source = listings[0]["source"]
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -166,7 +169,7 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     for chunk in _chunks(ext_ids, 100):
         rows = _safe_exec(
             client.table("car_listings")
-            .select("id, external_id, content_hash")
+            .select("id, external_id, content_hash, is_active")
             .eq("source", source)
             .in_("external_id", chunk)
         )
@@ -181,6 +184,7 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
     # hash_changed=False → routed in only because detail_scraped_at is set;
     #                       counted/logged only if actual fields differ.
     changed: list[tuple[str, dict, str, bool]] = []
+    relisted_ids: list[str] = []  # rows being re-activated after a prior soft-delete
 
     for raw in listings:
         ext_id = raw["external_id"]
@@ -195,8 +199,17 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             listing["is_active"] = True
             to_insert.append(listing)
             counts["new"] += 1
+            new_external_ids.add(ext_id)
+            continue
 
-        elif existing[ext_id]["content_hash"] != new_hash:
+        was_inactive = existing[ext_id].get("is_active") is False
+        if was_inactive:
+            # Listing reappeared after a previous soft-delete. Re-activate it
+            # regardless of which routing branch it falls into below, and log
+            # a "relisted" change row for the digest.
+            relisted_ids.append(existing[ext_id]["id"])
+
+        if existing[ext_id]["content_hash"] != new_hash:
             listing["last_changed_at"] = now_iso
             listing["is_active"] = True
             changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"], True))
@@ -209,6 +222,14 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             # persist. Counter + change log are deferred to the loop below
             # so we only count/log when real fields differ — empty-diff
             # detail re-entries no longer pollute the digest.
+            listing["is_active"] = True
+            changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"], False))
+
+        elif was_inactive:
+            # Hash matches and no detail re-scrape, but the row is currently
+            # inactive — promote to a per-row update so is_active/deleted_at
+            # actually get cleared (the bulk-touch path only writes
+            # last_seen_at).
             listing["is_active"] = True
             changed.append((existing[ext_id]["id"], listing, existing[ext_id]["content_hash"], False))
 
@@ -234,8 +255,15 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
 
         logger.info(f"[{source}] upsert: applying {len(changed)} updates")
         for old_id, listing, old_hash, hash_changed in changed:
+            # Strip None values from the UPDATE payload. List-scrape doesn't
+            # extract every field every run (e.g. `color` is missing from
+            # most search-page JSON-LD entries), and sending those Nones
+            # would overwrite valid DB columns populated by a previous run.
+            # INSERT path (above) keeps the dict intact — Postgres uses the
+            # column default for missing keys, so this is safe.
+            update_payload = {k: v for k, v in listing.items() if v is not None}
             _safe_exec(
-                client.table("car_listings").update(listing).eq("id", old_id)
+                client.table("car_listings").update(update_payload).eq("id", old_id)
             )
             changed_fields = _diff(old_rows.get(old_id, {}), listing)
             if hash_changed:
@@ -254,6 +282,29 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
                 counts["updated"] += 1
                 updated_external_ids.add(listing["external_id"])
             # else: silent no-op write — no log row, no counter bump.
+
+    # Re-activate listings that reappeared after a previous soft-delete.
+    # Done as a dedicated UPDATE because the per-row update payload above
+    # strips Nones, so it can't clear deleted_at back to NULL on its own.
+    # Each re-activation gets a "relisted" change row so the digest can
+    # surface them separately from new arrivals and price updates.
+    if relisted_ids:
+        for chunk in _chunks(relisted_ids, 150):
+            _safe_exec(
+                client.table("car_listings")
+                .update({
+                    "is_active": True,
+                    "deleted_at": None,
+                    "missed_run_count": 0,
+                })
+                .in_("id", chunk)
+            )
+        for rid in relisted_ids:
+            _log_change(client, rid, "relisted", None, None, {})
+        counts["relisted"] = len(relisted_ids)
+        logger.info(
+            f"[{source}] re-activated {len(relisted_ids)} previously-deleted listings"
+        )
 
     # Bulk insert all new listings
     if to_insert:
@@ -275,6 +326,7 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             )
 
     counts["updated_external_ids"] = updated_external_ids
+    counts["new_external_ids"] = new_external_ids
     return counts
 
 
@@ -700,9 +752,10 @@ def build_change_digest(
             line += f"\n  {l['url']}"
         return line
 
-    news    = [c for c in changes if c["change_type"] == "created"]
-    updates = [c for c in changes if c["change_type"] == "updated"]
-    deletes = [c for c in changes if c["change_type"] == "deleted"]
+    news     = [c for c in changes if c["change_type"] == "created"]
+    updates  = [c for c in changes if c["change_type"] == "updated"]
+    deletes  = [c for c in changes if c["change_type"] == "deleted"]
+    relisted = [c for c in changes if c["change_type"] == "relisted"]
 
     sections: list[str] = []
     if news:
@@ -710,6 +763,14 @@ def build_change_digest(
         if len(news) > limit_per_section:
             lines.append(f"  …and {len(news) - limit_per_section} more")
         sections.append(f"🆕 {len(news)} new:\n" + "\n".join(lines))
+    if relisted:
+        # Relisted = listing reappeared after a prior soft-delete (often a
+        # bookkeeping artefact: scrape coverage flicker first soft-deleted
+        # the listing, the next run found it alive again).
+        lines = [_fmt_new(c) for c in relisted[:limit_per_section]]
+        if len(relisted) > limit_per_section:
+            lines.append(f"  …and {len(relisted) - limit_per_section} more")
+        sections.append(f"♻️ {len(relisted)} relisted:\n" + "\n".join(lines))
     if updates:
         lines = [_fmt_update(c) for c in updates[:limit_per_section]]
         if len(updates) > limit_per_section:
@@ -814,14 +875,21 @@ def _log_change(client: Client, listing_id: str, change_type: str,
 
 
 def _diff(old: dict, new: dict) -> dict:
+    # Watched fields for change-detection logging. `color` is intentionally
+    # excluded: it's owned by the Groq vision extractor (scripts/extract_colors.py),
+    # not the scraper, so a list-scrape diff against it is meaningless.
     WATCH = [
         "price_aed", "price_aed_max", "mileage_km", "description",
-        "seller_phone", "color", "condition", "image_urls", "area", "emirate"
+        "seller_phone", "condition", "image_urls", "area", "emirate"
     ]
+    # Skip fields where the new value is None — that means the scraper didn't
+    # extract this field this run (e.g. `color` missing from list-page JSON-LD).
+    # The update payload also strips Nones, so the DB value is preserved; we
+    # don't want to log a phantom "white → ∅" change for it either.
     return {
         f: {"old": old.get(f), "new": new.get(f)}
         for f in WATCH
-        if old.get(f) != new.get(f)
+        if old.get(f) != new.get(f) and new.get(f) is not None
     }
 
 

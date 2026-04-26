@@ -159,6 +159,27 @@ def run_source(name: str, client, dry_run: bool) -> dict:
             # existing. Trust the intermediate's `new` count when present.
             counts["new"] = inter.get("new", counts.get("new", 0))
 
+        # Inline color extraction for newly-inserted listings. Color is
+        # owned by the Groq vision extractor (scripts/extract_colors.py),
+        # not the scraper, so we trigger it right after upsert for any
+        # listing seen for the first time this run. Non-fatal: failures
+        # leave color IS NULL for the standalone backfill cron to pick up.
+        new_ext_ids = (
+            (inter.get("new_external_ids") or set())
+            | (upsert_counts.get("new_external_ids") or set())
+        )
+        if new_ext_ids:
+            try:
+                from scripts.extract_colors import extract_colors_for_external_ids
+                summary = extract_colors_for_external_ids(client, name, new_ext_ids)
+                logger.info(
+                    f"[{name}] inline color extraction: "
+                    f"ok={summary['ok']} fail={summary['fail']} "
+                    f"attempted={summary['attempted']} of {len(new_ext_ids)} new"
+                )
+            except Exception as e:
+                logger.warning(f"[{name}] inline color extraction failed: {e}")
+
         live_ids = {l["external_id"] for l in listings}
         if hasattr(scraper, "verify_dead_urls"):
             # Two-step delete with grace + URL verification.

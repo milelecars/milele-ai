@@ -1119,7 +1119,11 @@ class DubizzleScraper(BaseScraper):
                     if isinstance(car.get("vehicleEngine"), dict) else None
                 ),
                 "cylinders": None,
-                "color": self._pick_str(car.get("color")),
+                # Exterior color is NOT extracted from the list-page JSON-LD —
+                # it's missing for most listings, and writing None on update
+                # would erase a value populated by the Groq vision extractor
+                # (scripts/extract_colors.py). Color is owned end-to-end by
+                # that extractor; the scraper never touches it.
                 "doors": self.clean_int(car.get("numberOfDoors")),
                 "price_aed": price,
                 "price_aed_max": price_max,

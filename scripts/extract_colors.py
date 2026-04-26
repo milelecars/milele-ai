@@ -142,6 +142,122 @@ def _extract_color(client: Groq, image_url: str) -> Optional[str]:
     return None
 
 
+def _process_rows(groq: Groq, db_client, rows: list[dict]) -> dict:
+    """
+    Run the Groq vision call for each row in `rows` and write back the colour.
+    Each row must contain at least: id, external_id, make, model, image_urls, url.
+
+    Halts early if CONSECUTIVE_FAIL_LIMIT calls fail in a row (rate-limit signal).
+    Returns {"ok": int, "fail": int, "attempted": int}.
+    """
+    ok = 0
+    fail = 0
+    consecutive_fail = 0
+    total = len(rows)
+    for i, row in enumerate(rows, 1):
+        img_url = _pick_first_image(row.get("image_urls"))
+        listing_url = row.get("url") or "(no url)"
+        tag = f"{row.get('make')} {row.get('model')} ({row['external_id'][:8]})"
+
+        if not img_url:
+            logger.info(f"[{i}/{total}] {tag}: no image → skip | {listing_url}")
+            fail += 1
+            consecutive_fail += 1
+        else:
+            color = _extract_color(groq, img_url)
+            if color:
+                try:
+                    _safe_exec(
+                        db_client.table("car_listings")
+                        .update({"color": color})
+                        .eq("id", row["id"])
+                    )
+                    ok += 1
+                    consecutive_fail = 0
+                    logger.info(
+                        f"[{i}/{total}] {tag} → {color} | {listing_url}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{i}/{total}] {tag}: DB write failed ({e}) | {listing_url}"
+                    )
+                    fail += 1
+                    consecutive_fail += 1
+            else:
+                logger.info(
+                    f"[{i}/{total}] {tag}: unable to determine | {listing_url}"
+                )
+                fail += 1
+                consecutive_fail += 1
+
+        if consecutive_fail >= CONSECUTIVE_FAIL_LIMIT:
+            logger.error(
+                f"{consecutive_fail} consecutive failures — likely rate-limited. "
+                f"Stopping after ok={ok} fail={fail}."
+            )
+            break
+
+        # Groq free tier is ~30 RPM → ~2 s gap with jitter.
+        time.sleep(random.uniform(1.8, 2.6))
+
+    return {"ok": ok, "fail": fail, "attempted": ok + fail}
+
+
+def extract_colors_for_external_ids(
+    db_client, source: str, external_ids,
+) -> dict:
+    """
+    Run colour extraction against an explicit set of external_ids (e.g. the
+    listings just inserted by the scraper this run). Returns the same
+    {ok, fail, attempted} summary as the CLI path. No-ops cleanly when the
+    set is empty or GROQ_API_KEY is unset.
+
+    Designed to be called from main.py post-upsert. Failures are non-fatal:
+    any row left with color IS NULL gets picked up by the standalone
+    `python -m scripts.extract_colors` backfill cron.
+    """
+    ext_ids = list(external_ids) if external_ids else []
+    if not ext_ids:
+        return {"ok": 0, "fail": 0, "attempted": 0}
+
+    groq_key = os.environ.get("GROQ_API_KEY")
+    if not groq_key:
+        logger.warning(
+            f"[{source}] GROQ_API_KEY not set — skipping inline color "
+            f"extraction for {len(ext_ids)} new listings (run "
+            f"`python -m scripts.extract_colors` to backfill later)."
+        )
+        return {"ok": 0, "fail": 0, "attempted": 0}
+
+    # Pull only rows that still need a colour (filter is_active too — the
+    # extractor should never touch soft-deleted rows).
+    rows: list[dict] = []
+    for i in range(0, len(ext_ids), 100):
+        chunk = ext_ids[i : i + 100]
+        try:
+            data = _safe_exec(
+                db_client.table("car_listings")
+                .select("id, external_id, make, model, image_urls, url")
+                .eq("source", source)
+                .eq("is_active", True)
+                .is_("color", "null")
+                .in_("external_id", chunk)
+            ).data or []
+            rows.extend(data)
+        except Exception as e:
+            logger.warning(f"[{source}] color row fetch failed: {e}")
+
+    if not rows:
+        return {"ok": 0, "fail": 0, "attempted": 0}
+
+    logger.info(
+        f"[{source}] extract_colors: {len(rows)} new listings via Groq "
+        f"({GROQ_MODEL})"
+    )
+    groq = Groq(api_key=groq_key)
+    return _process_rows(groq, db_client, rows)
+
+
 def main():
     try:
         limit = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_LIMIT
@@ -177,57 +293,11 @@ def main():
         f"Processing up to {len(rows)} rows via Groq ({GROQ_MODEL}). "
         f"Throttling ~30 RPM (~2 s per call)."
     )
-
-    ok = 0
-    fail = 0
-    consecutive_fail = 0
-    for i, row in enumerate(rows, 1):
-        img_url = _pick_first_image(row.get("image_urls"))
-        listing_url = row.get("url") or "(no url)"
-        tag = f"{row.get('make')} {row.get('model')} ({row['external_id'][:8]})"
-
-        if not img_url:
-            logger.info(f"[{i}/{len(rows)}] {tag}: no image → skip | {listing_url}")
-            fail += 1
-            consecutive_fail += 1
-        else:
-            color = _extract_color(groq, img_url)
-            if color:
-                try:
-                    _safe_exec(
-                        client.table("car_listings")
-                        .update({"color": color})
-                        .eq("id", row["id"])
-                    )
-                    ok += 1
-                    consecutive_fail = 0
-                    logger.info(
-                        f"[{i}/{len(rows)}] {tag} → {color} | {listing_url}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[{i}/{len(rows)}] {tag}: DB write failed ({e}) | {listing_url}"
-                    )
-                    fail += 1
-                    consecutive_fail += 1
-            else:
-                logger.info(
-                    f"[{i}/{len(rows)}] {tag}: unable to determine | {listing_url}"
-                )
-                fail += 1
-                consecutive_fail += 1
-
-        if consecutive_fail >= CONSECUTIVE_FAIL_LIMIT:
-            logger.error(
-                f"{consecutive_fail} consecutive failures — likely rate-limited. "
-                f"Stopping after ok={ok} fail={fail}."
-            )
-            break
-
-        # Groq free tier is ~30 RPM → ~2 s gap with jitter.
-        time.sleep(random.uniform(1.8, 2.6))
-
-    logger.info(f"Done. ok={ok} fail={fail} attempted={ok + fail}")
+    summary = _process_rows(groq, client, rows)
+    logger.info(
+        f"Done. ok={summary['ok']} fail={summary['fail']} "
+        f"attempted={summary['attempted']}"
+    )
 
 
 if __name__ == "__main__":
