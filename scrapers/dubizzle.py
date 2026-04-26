@@ -114,6 +114,12 @@ _VIEWPORTS = [
 _BLOCK_TITLE = "Pardon Our Interruption"
 _BLOCK_DOM_SELECTOR = "#interstitial-inprogress"
 
+# Marker rendered on the Dubizzle "listing not found / expired" page. Presence
+# of this element in the DOM is the authoritative signal that a listing was
+# removed (vs. merely missing from search results due to pagination flicker).
+# Sample copy: "Sorry, this page is lost in the sands … expired or been deleted".
+_NOT_FOUND_DOM_SELECTOR = '[data-testid="not-found"]'
+
 
 # JS extractor for the detail page. Runs in the browser context, returns a
 # JSON-serialisable dict: overview k/v, features by category, all images, and
@@ -801,6 +807,152 @@ class DubizzleScraper(BaseScraper):
             if r["external_id"] in known and r["external_id"] not in succeeded:
                 r.pop("image_urls", None)
                 r.pop("description", None)
+
+    # ── Delisting verification ──────────────────────────────────────────────
+
+    def verify_dead_urls(self, candidates: list[dict]) -> set[str]:
+        """
+        Visit each candidate URL with Playwright/stealth and return the set of
+        external_ids whose page renders the Dubizzle "listing not found" marker
+        (`[data-testid="not-found"]`). All other outcomes — Imperva block,
+        navigation error, or a page that still shows real listing content — are
+        treated as "do not delete this run".
+
+        Each candidate is a dict with at least `external_id` and `url`. The
+        method opens its own Playwright session (separate from `run`'s session,
+        which is already closed by the time main.py reaches the verify step).
+
+        Env knobs:
+            DUBIZZLE_VERIFY_BATCH_SIZE   max URLs to verify per run (default 200)
+            DUBIZZLE_VERIFY_ROTATE_EVERY context rotation interval  (default 25)
+        """
+        if not candidates:
+            return set()
+
+        try:
+            from playwright.sync_api import sync_playwright
+            from playwright_stealth import Stealth
+        except ImportError as e:
+            logger.error(
+                f"[{self.SOURCE}] Playwright not available for verify_dead_urls: {e}"
+            )
+            return set()
+
+        try:
+            cap = int(os.environ.get("DUBIZZLE_VERIFY_BATCH_SIZE", "200"))
+        except ValueError:
+            cap = 200
+        try:
+            rotate_every = int(os.environ.get("DUBIZZLE_VERIFY_ROTATE_EVERY", "25"))
+        except ValueError:
+            rotate_every = 25
+
+        targets = [c for c in candidates if c.get("url")][:cap]
+        if not targets:
+            return set()
+
+        headless = os.environ.get("DUBIZZLE_HEADLESS", "0") == "1"
+        proxy_url = (
+            os.environ.get("DUBIZZLE_PROXY")
+            or os.environ.get("SCRAPER_PROXY")
+            or ""
+        )
+        proxy_dict = _parse_proxy(proxy_url)
+
+        logger.info(
+            f"[{self.SOURCE}] verify_dead_urls: {len(targets)} of "
+            f"{len(candidates)} candidates (cap={cap})"
+        )
+
+        dead: set[str] = set()
+        n_alive = 0
+        n_unknown = 0
+
+        with Stealth().use_sync(sync_playwright()) as p:
+            browser = p.chromium.launch(headless=headless)
+            context = self._new_context(browser, proxy_dict)
+            page = context.new_page()
+            try:
+                for i, c in enumerate(targets, 1):
+                    if i > 1 and (i - 1) % rotate_every == 0:
+                        page = self._rotate_detail_context(
+                            page, browser, proxy_dict,
+                            reason=f"verify rotation at {i}/{len(targets)}",
+                            cooldown=(5, 12),
+                        )
+
+                    ext = c["external_id"]
+                    state = self._check_listing_state(page, c["url"])
+                    if state == "dead":
+                        dead.add(ext)
+                    elif state == "alive":
+                        n_alive += 1
+                    else:
+                        n_unknown += 1
+                    logger.info(
+                        f"[{self.SOURCE}] verify {i}/{len(targets)} {state} {ext}"
+                    )
+                    self._human_wait(page, 1_500, 4_000)
+            finally:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+
+        logger.info(
+            f"[{self.SOURCE}] verify_dead_urls done: dead={len(dead)}, "
+            f"alive={n_alive}, unknown={n_unknown}"
+        )
+        return dead
+
+    def _check_listing_state(self, page, url: str) -> str:
+        """
+        Return one of:
+          'dead'    — the not-found marker is present on the page.
+          'alive'   — the page rendered real listing content.
+          'unknown' — Imperva block, navigation error, or page rendered but
+                      neither marker was visible. Conservative: never deletes.
+        """
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+        except Exception as e:
+            logger.warning(f"[{self.SOURCE}] verify goto failed {url}: {e}")
+            return "unknown"
+
+        self._human_wait(page, 3_000, 6_000)
+
+        if self._is_blocked(page):
+            return "unknown"
+
+        try:
+            not_found = page.query_selector(_NOT_FOUND_DOM_SELECTOR) is not None
+        except Exception:
+            not_found = False
+        if not_found:
+            return "dead"
+
+        # Confirm a real listing rendered: JSON-LD product/vehicle island, or
+        # a price element. If neither, stay conservative and return 'unknown'.
+        try:
+            has_listing = page.evaluate(
+                """() => {
+                    const ld = document.querySelectorAll(
+                        'script[type="application/ld+json"]'
+                    );
+                    for (const el of ld) {
+                        try {
+                            const d = JSON.parse(el.textContent);
+                            const t = d && d['@type'];
+                            if (t === 'Product' || t === 'Vehicle' || t === 'Car') return true;
+                            if (d && d.offers) return true;
+                        } catch (e) {}
+                    }
+                    return !!document.querySelector('[data-testid="listing-price"]');
+                }"""
+            )
+        except Exception:
+            has_listing = False
+        return "alive" if has_listing else "unknown"
 
     def _fetch_detail(self, page, url: str) -> Optional[dict]:
         try:

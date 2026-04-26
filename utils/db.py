@@ -267,6 +267,9 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
     Soft-delete any not in live_external_ids.
     Aborts if deletion count would exceed SOFT_DELETE_SAFETY_THRESHOLD.
     Returns count of deleted listings.
+
+    Used by scrapers that do not implement URL-level verification. Scrapers
+    that can verify dead URLs should use mark_missing + soft_delete_verified.
     """
     now = datetime.now(timezone.utc).isoformat()
     all_stored = []
@@ -313,6 +316,173 @@ def soft_delete_missing(client: Client, source: str, live_external_ids: set[str]
             _log_change(client, r["id"], "deleted", None, None, {})
         deleted += len(chunk)
 
+    return deleted
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Verified-delete pipeline: mark_missing → verify_dead_urls → soft_delete_verified
+#
+# Two-step delete with a one-run grace period and URL-level confirmation:
+#   1. mark_missing: bumps missed_run_count for listings not seen this run,
+#      resets to 0 for listings that were seen. Returns the rows whose count
+#      just reached >= MISS_GRACE_THRESHOLD (default 2) — the verification
+#      candidates.
+#   2. The scraper visits each candidate URL and reports back which ones are
+#      actually dead (e.g. served the "page not found" page).
+#   3. soft_delete_verified: deletes only those confirmed-dead listings.
+#
+# Net effect: a listing must be missing for 2 consecutive runs AND its URL
+# must serve a confirmed-dead marker before it gets soft-deleted. Routine
+# pagination flicker no longer causes false delistings.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Number of consecutive missed runs before a listing becomes a verification
+# candidate. 2 = first miss is grace, second miss triggers URL check.
+MISS_GRACE_THRESHOLD = 2
+
+
+def mark_missing(
+    client: Client, source: str, live_external_ids: set[str],
+) -> dict:
+    """
+    Reconcile this run's results with DB state:
+      - Reset missed_run_count to 0 for any active listing seen this run.
+      - Increment missed_run_count for any active listing NOT seen this run.
+      - Return rows whose new count is >= MISS_GRACE_THRESHOLD as
+        verification candidates.
+
+    Returns a dict:
+      {
+        "total_active":  int — active listings in DB before this run,
+        "missing":       int — total listings missing this run,
+        "first_miss":    int — first-time misses (grace, no action),
+        "candidates":    list[{id, external_id, url, missed_run_count}],
+      }
+    """
+    all_stored: list[dict] = []
+    page_size = 1000
+    offset = 0
+    while True:
+        batch = _safe_exec(
+            client.table("car_listings")
+            .select("id, external_id, url, missed_run_count")
+            .eq("source", source)
+            .eq("is_active", True)
+            .range(offset, offset + page_size - 1)
+        )
+        rows = batch.data or []
+        all_stored.extend(rows)
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    seen = [r for r in all_stored if r["external_id"] in live_external_ids]
+    missing = [r for r in all_stored if r["external_id"] not in live_external_ids]
+
+    # Reset counter for seen rows that were previously missing.
+    to_reset = [r["id"] for r in seen if (r.get("missed_run_count") or 0) > 0]
+    for chunk in _chunks(to_reset, 150):
+        _safe_exec(
+            client.table("car_listings")
+            .update({"missed_run_count": 0})
+            .in_("id", chunk)
+        )
+
+    # Increment counter for missing rows. Group by current count so we can
+    # batch-update each group with a single new value.
+    by_old_count: dict = {}
+    for r in missing:
+        cur = r.get("missed_run_count") or 0
+        by_old_count.setdefault(cur, []).append(r["id"])
+    for old_count, ids in by_old_count.items():
+        for chunk in _chunks(ids, 150):
+            _safe_exec(
+                client.table("car_listings")
+                .update({"missed_run_count": old_count + 1})
+                .in_("id", chunk)
+            )
+
+    candidates = []
+    first_miss = 0
+    for r in missing:
+        new_count = (r.get("missed_run_count") or 0) + 1
+        if new_count >= MISS_GRACE_THRESHOLD:
+            candidates.append({
+                "id": r["id"],
+                "external_id": r["external_id"],
+                "url": r.get("url"),
+                "missed_run_count": new_count,
+            })
+        else:
+            first_miss += 1
+
+    logger.info(
+        f"[{source}] mark_missing: total_active={len(all_stored)}, "
+        f"missing={len(missing)} "
+        f"(first_miss={first_miss}, verify_candidates={len(candidates)})"
+    )
+    return {
+        "total_active": len(all_stored),
+        "missing": len(missing),
+        "first_miss": first_miss,
+        "candidates": candidates,
+    }
+
+
+def soft_delete_verified(
+    client: Client, source: str, dead_external_ids: set[str],
+    total_active: Optional[int] = None,
+) -> int:
+    """
+    Soft-delete listings whose URL was confirmed dead by the scraper. Applies
+    the SOFT_DELETE_SAFETY_THRESHOLD against `total_active` if provided
+    (caller should pass the value returned by mark_missing for accuracy).
+    Returns count of deleted listings.
+    """
+    if not dead_external_ids:
+        return 0
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    to_delete: list[dict] = []
+    for chunk in _chunks(list(dead_external_ids), 100):
+        rows = _safe_exec(
+            client.table("car_listings")
+            .select("id, external_id")
+            .eq("source", source)
+            .eq("is_active", True)
+            .in_("external_id", chunk)
+        ).data or []
+        to_delete.extend(rows)
+
+    if not to_delete:
+        return 0
+
+    if total_active and total_active > 50:
+        ratio = len(to_delete) / total_active
+        if ratio > SOFT_DELETE_SAFETY_THRESHOLD:
+            logger.error(
+                f"[{source}] SAFETY ABORT: {len(to_delete)}/{total_active} "
+                f"({ratio:.0%}) verified-dead would be soft-deleted — exceeds "
+                f"{SOFT_DELETE_SAFETY_THRESHOLD:.0%} threshold. No deletions."
+            )
+            return 0
+
+    deleted = 0
+    for chunk in _chunks(to_delete, 150):
+        ids = [r["id"] for r in chunk]
+        _safe_exec(
+            client.table("car_listings").update({
+                "is_active": False,
+                "deleted_at": now,
+                "last_seen_at": now,
+            }).in_("id", ids)
+        )
+        for r in chunk:
+            _log_change(client, r["id"], "deleted", None, None, {})
+        deleted += len(chunk)
+
+    logger.info(f"[{source}] soft_delete_verified: deleted {deleted} listings")
     return deleted
 
 

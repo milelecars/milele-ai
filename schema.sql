@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS car_listings (
     last_changed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     is_active           BOOLEAN NOT NULL DEFAULT TRUE,
     deleted_at          TIMESTAMPTZ,
+    -- Consecutive runs in which this listing was active in DB but absent from
+    -- the scraper's results. Reset to 0 when seen, incremented when missing.
+    -- Listings reaching count >= 2 get URL-verified before soft-delete.
+    missed_run_count    INTEGER NOT NULL DEFAULT 0,
 
     -- RAG (uncomment when ready):
     -- embedding         vector(1536),
@@ -133,6 +137,13 @@ ALTER TABLE car_listings
 -- Supports the incremental backfill query (oldest unscraped first).
 CREATE INDEX IF NOT EXISTS idx_listings_detail_backfill
     ON car_listings(source, detail_scraped_at NULLS FIRST, first_seen_at);
+
+-- ============================================================
+-- MIGRATION: missed_run_count for grace-period delisting
+-- (idempotent — safe to re-run)
+-- ============================================================
+ALTER TABLE car_listings
+    ADD COLUMN IF NOT EXISTS missed_run_count INTEGER NOT NULL DEFAULT 0;
 
 -- ============================================================
 -- RLS

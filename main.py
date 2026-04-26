@@ -43,6 +43,7 @@ import requests as _requests
 from utils.db import (
     get_client, upsert_listings, soft_delete_missing, log_run,
     get_detail_plan, build_change_digest,
+    mark_missing, soft_delete_verified,
 )
 
 logging.basicConfig(
@@ -145,7 +146,28 @@ def run_source(name: str, client, dry_run: bool) -> dict:
         counts.update(upsert_counts)
 
         live_ids = {l["external_id"] for l in listings}
-        counts["deleted"] = soft_delete_missing(client, name, live_ids)
+        if hasattr(scraper, "verify_dead_urls"):
+            # Two-step delete with grace + URL verification.
+            #   1. Bump missed_run_count for missing listings (first miss is
+            #      grace, no action). Returns rows that have now missed
+            #      MISS_GRACE_THRESHOLD runs in a row — verification candidates.
+            #   2. Ask the scraper to visit each candidate URL. Only those that
+            #      serve a confirmed "listing not found" page are returned.
+            #   3. Soft-delete the confirmed-dead set.
+            miss = mark_missing(client, name, live_ids)
+            candidates = miss["candidates"]
+            if candidates:
+                dead_ids = scraper.verify_dead_urls(candidates) or set()
+                counts["deleted"] = soft_delete_verified(
+                    client, name, dead_ids,
+                    total_active=miss["total_active"],
+                )
+            else:
+                counts["deleted"] = 0
+        else:
+            # Legacy path: scrapers without verify_dead_urls fall back to the
+            # immediate soft-delete behaviour.
+            counts["deleted"] = soft_delete_missing(client, name, live_ids)
 
         duration = time.time() - start
         logger.info(
