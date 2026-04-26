@@ -817,6 +817,9 @@ DETAIL_FIELDS: frozenset = frozenset({
     "dealer_name", "dealer_logo_url",
     "image_urls", "description",
     "body_type", "fuel_type", "cylinders", "doors", "area",
+    # Source-specific catch-all + dealer phone — both filled by the DubiCars
+    # detail scraper and would otherwise only persist via the final upsert.
+    "attributes", "seller_phone",
 })
 
 
