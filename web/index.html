@@ -415,7 +415,6 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .badge.new     { background: var(--accent); color: white; border-color: var(--accent); }
   .badge.warranty { background: var(--success); color: #000; border-color: var(--success); }
   .modal-sections {
     display: grid;
@@ -1014,7 +1013,7 @@ function openModal(row) {
 
   // Badges
   const badges = [];
-  if (row.condition) badges.push({ cls: row.condition === "new" ? "new" : "", text: row.condition });
+  // Condition is shown in the Condition section as a data row; no badge.
   if (row.warranty === true) badges.push({ cls: "warranty", text: "warranty" });
   if (row.price_negotiable) badges.push({ cls: "", text: "negotiable" });
   $("modal-badges").innerHTML = badges
