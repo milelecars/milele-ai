@@ -237,6 +237,73 @@
   }
   .card .dealer a:hover { text-decoration: underline; }
 
+  /* Pagination — sticky bottom bar so prev/next is always reachable while
+     scrolling a long list of cards. */
+  .pagination {
+    position: sticky;
+    bottom: 16px;
+    margin: 24px auto 0;
+    max-width: 560px;
+    background: rgba(26, 32, 40, 0.92);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    z-index: 5;
+  }
+  .pagination-info {
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pagination button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .pagination button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .pagination button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .page-indicator {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+    min-width: 92px;
+    text-align: center;
+  }
+  @media (max-width: 560px) {
+    .pagination {
+      flex-direction: column;
+      gap: 8px;
+      border-radius: var(--radius);
+      padding: 10px 14px;
+    }
+    .pagination-info { font-size: 11px; }
+  }
+
   /* Config banner */
   .config-warning {
     background: #3d2817;
@@ -723,7 +790,7 @@ const SEARCH_SELECT =
   "seller_type,dealer_name,warranty,posted_at,first_seen_at,last_seen_at," +
   "last_changed_at,image_urls,description,features";
 
-function buildQuery(f) {
+function buildQuery(f, page = 1) {
   let q = sb
     .from("car_listings")
     .select(SEARCH_SELECT, { count: "exact" })
@@ -751,7 +818,9 @@ function buildQuery(f) {
   }
 
   const [col, dir] = f.sort.split(".");
-  q = q.order(col, { ascending: dir === "asc" }).limit(RESULT_LIMIT);
+  const offset = (page - 1) * RESULT_LIMIT;
+  q = q.order(col, { ascending: dir === "asc" })
+       .range(offset, offset + RESULT_LIMIT - 1);
   return q;
 }
 
@@ -819,30 +888,45 @@ function renderCard(row) {
   `;
 }
 
-async function doSearch() {
+// Pagination state — captured at search time so prev/next reuse the same
+// filter set even if the user is mid-edit on the form when they paginate.
+let CURRENT_PAGE = 1;
+let LAST_FILTERS = null;
+let LAST_TOTAL = 0;
+
+async function doSearch(page = 1, filters = null) {
   setStatus("searching…");
   const results = $("results");
   results.innerHTML = '<div class="hint">Searching…</div>';
 
-  const f = readFilters();
+  const f = filters || readFilters();
+  CURRENT_PAGE = page;
+  LAST_FILTERS = f;
+
   try {
-    const { data, count, error } = await buildQuery(f);
+    const { data, count, error } = await buildQuery(f, page);
     if (error) throw error;
     const rows = data || [];
+    LAST_TOTAL = count || 0;
 
     // Refresh the row cache for the modal to look up on card click.
     ROW_CACHE.clear();
     for (const r of rows) ROW_CACHE.set(r.external_id, r);
 
     if (rows.length === 0) {
-      results.innerHTML = '<div class="hint">No matches. Try relaxing a filter.</div>';
-      setStatus(`0 matches`);
+      results.innerHTML = page > 1
+        ? '<div class="hint">No more results on this page.</div>'
+        : '<div class="hint">No matches. Try relaxing a filter.</div>';
+      setStatus(page > 1 ? `${LAST_TOTAL} matches` : `0 matches`);
       return;
     }
 
-    const headline = count != null && count > rows.length
-      ? `${count} matches — showing ${rows.length}`
-      : `${rows.length} match${rows.length === 1 ? "" : "es"}`;
+    const totalPages = Math.max(1, Math.ceil(LAST_TOTAL / RESULT_LIMIT));
+    const start = (page - 1) * RESULT_LIMIT + 1;
+    const end = start + rows.length - 1;
+    const headline = LAST_TOTAL > rows.length
+      ? `${LAST_TOTAL.toLocaleString()} matches — showing ${start}–${end}`
+      : `${LAST_TOTAL} match${LAST_TOTAL === 1 ? "" : "es"}`;
 
     results.innerHTML = `
       <div class="results-header">
@@ -851,12 +935,31 @@ async function doSearch() {
       <div class="results-grid">
         ${rows.map(renderCard).join("")}
       </div>
+      ${renderPagination(page, totalPages, start, end, LAST_TOTAL)}
     `;
     setStatus(headline);
   } catch (e) {
     results.innerHTML = `<div class="hint" style="color:#f87171">Error: ${escapeHtml(e.message || String(e))}</div>`;
     setStatus("error");
   }
+}
+
+function renderPagination(page, totalPages, start, end, total) {
+  if (totalPages <= 1) return "";
+  const disablePrev = page <= 1 ? "disabled" : "";
+  const disableNext = page >= totalPages ? "disabled" : "";
+  return `
+    <div class="pagination" role="navigation" aria-label="Search pagination">
+      <div class="pagination-info">${start}–${end} of ${total.toLocaleString()}</div>
+      <div class="pagination-controls">
+        <button data-page="1"            ${disablePrev} aria-label="First page" title="First page">«</button>
+        <button data-page="${page - 1}"  ${disablePrev} aria-label="Previous page">‹ Prev</button>
+        <span class="page-indicator">Page ${page} / ${totalPages}</span>
+        <button data-page="${page + 1}"  ${disableNext} aria-label="Next page">Next ›</button>
+        <button data-page="${totalPages}" ${disableNext} aria-label="Last page" title="Last page">»</button>
+      </div>
+    </div>
+  `;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1050,9 +1153,28 @@ function resetFilters() {
   $("f-sort").value = "first_seen_at.desc";
   $("results").innerHTML = '<div class="hint">Set filters and hit <strong>Search</strong> to see matches.</div>';
   setStatus("");
+  LAST_FILTERS = null;
+  CURRENT_PAGE = 1;
+  LAST_TOTAL = 0;
 }
 
-$("btn-search").addEventListener("click", doSearch);
+// Pagination — uses the cached filter set captured by the last doSearch()
+// so the user's mid-edit form input doesn't accidentally apply during paging.
+// Smooth-scrolls back to the top of the results so the new page's first card
+// is visible without a jarring jump.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".pagination button[data-page]");
+  if (!btn || btn.disabled) return;
+  const page = Number(btn.dataset.page);
+  if (!Number.isFinite(page) || page === CURRENT_PAGE) return;
+  doSearch(page, LAST_FILTERS).then(() => {
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+
+// Search button → start at page 1 with whatever filters are in the form now.
+// Wrap so the click event isn't accidentally passed in as the `page` arg.
+$("btn-search").addEventListener("click", () => doSearch(1));
 $("btn-reset").addEventListener("click", resetFilters);
 
 // Refilter the model datalist as the user types/picks a make. Also clear
@@ -1071,9 +1193,9 @@ $("f-make").addEventListener("input", () => {
   }
 });
 
-// Allow Enter key anywhere in the form to submit
+// Allow Enter key anywhere in the form to submit (always page 1)
 document.querySelector(".filters").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") doSearch();
+  if (e.key === "Enter") doSearch(1);
 });
 
 // Prefill every filter's dropdown on load (single query to the DB)

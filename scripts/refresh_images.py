@@ -53,6 +53,10 @@ logging.basicConfig(
 logger = logging.getLogger("refresh_images")
 
 CONSECUTIVE_FAIL_LIMIT = 10
+# A new listing whose stored image_urls already has at least this many entries
+# is considered "rich" and skipped by the inline post-scrape refresh — saves
+# the Playwright cost on records the detail-enrichment phase already nailed.
+RICH_IMAGE_THRESHOLD = 3
 
 
 def _fetch_images(scraper: DubizzleScraper, page, url: str) -> list:
@@ -82,57 +86,18 @@ def _fetch_images(scraper: DubizzleScraper, page, url: str) -> list:
     return DubizzleScraper._normalise_detail_images(raw.get("images") or [])
 
 
-def main():
-    try:
-        limit = int(sys.argv[1]) if len(sys.argv) > 1 else 500
-    except ValueError:
-        limit = 500
+def _run_refresh(scraper: DubizzleScraper, rows: list[dict], db_client) -> dict:
+    """
+    Open a fresh Playwright/stealth session and refresh image_urls for each
+    row in `rows`. Each row must have id, external_id, url, and (optionally)
+    image_urls (used for length-preservation: never overwrite a richer DB
+    list with a thinner re-fetch).
 
-    sb_url = os.environ.get("SUPABASE_URL")
-    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
-    if not (sb_url and sb_key):
-        logger.error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
-        sys.exit(1)
-
-    client = get_client(sb_url, sb_key)
-
-    # Only rows that haven't been touched since the cutoff — anything refreshed
-    # after this timestamp already went through the fixed extractor.
-    # Cutoff: 2026-04-24 20:00 Asia/Dubai (UTC+4) == 2026-04-24 16:00 UTC.
-    refresh_cutoff = os.environ.get(
-        "DUBIZZLE_REFRESH_CUTOFF", "2026-04-24T16:00:00+00:00"
-    )
-
-    # PostgREST caps single responses at the project's max-rows (default 1000),
-    # so page through with .range() until we have `limit` rows or run out.
-    PAGE = 1000
-    rows: list = []
-    offset = 0
-    while len(rows) < limit:
-        batch_size = min(PAGE, limit - len(rows))
-        batch = _safe_exec(
-            client.table("car_listings")
-            .select("id, external_id, url, last_changed_at")
-            .eq("source", "dubizzle")
-            .eq("is_active", True)
-            .lt("last_changed_at", refresh_cutoff)
-            .order("last_changed_at")
-            .range(offset, offset + batch_size - 1)
-        ).data or []
-        if not batch:
-            break
-        rows.extend(batch)
-        if len(batch) < batch_size:
-            break
-        offset += len(batch)
-
+    Returns {"ok": int, "fail": int, "attempted": int}.
+    """
     if not rows:
-        logger.info("No active rows to refresh.")
-        return
+        return {"ok": 0, "fail": 0, "attempted": 0}
 
-    logger.info(f"Refreshing image_urls for {len(rows)} listings")
-
-    scraper = DubizzleScraper()
     headless = os.environ.get("DUBIZZLE_HEADLESS", "0") == "1"
     proxy_url = (
         os.environ.get("DUBIZZLE_PROXY")
@@ -148,6 +113,7 @@ def main():
     ok = 0
     fail = 0
     consecutive_empty = 0
+    total = len(rows)
 
     with Stealth().use_sync(sync_playwright()) as p:
         browser = p.chromium.launch(headless=headless)
@@ -176,7 +142,7 @@ def main():
                 if i > 1 and (i - 1) % rotate_every == 0:
                     page = scraper._rotate_detail_context(
                         page, browser, proxy_dict,
-                        reason=f"periodic at {i}/{len(rows)}",
+                        reason=f"periodic at {i}/{total}",
                     )
                     consecutive_empty = 0
 
@@ -184,7 +150,7 @@ def main():
                 ext_id = row["external_id"]
                 tag = f"{ext_id[:8]}"
                 if not url:
-                    logger.info(f"[{i}/{len(rows)}] {tag}: no URL, skip")
+                    logger.info(f"[{i}/{total}] {tag}: no URL, skip")
                     fail += 1
                     continue
 
@@ -194,7 +160,7 @@ def main():
                     fail += 1
                     consecutive_empty += 1
                     logger.warning(
-                        f"[{i}/{len(rows)}] ✗ {tag} (no images extracted)"
+                        f"[{i}/{total}] ✗ {tag} (no images extracted)"
                     )
                     if consecutive_empty >= 5:
                         page = scraper._rotate_detail_context(
@@ -205,24 +171,35 @@ def main():
                         consecutive_empty = 0
                 else:
                     consecutive_empty = 0
-                    try:
-                        _safe_exec(
-                            client.table("car_listings")
-                            .update({
-                                "image_urls": images,
-                                "last_changed_at": datetime.now(timezone.utc).isoformat(),
-                            })
-                            .eq("id", row["id"])
+                    # Length-preservation: never let a thin refresh overwrite
+                    # a richer set already in DB.
+                    existing = row.get("image_urls") or []
+                    if len(images) < len(existing):
+                        logger.info(
+                            f"[{i}/{total}] ↺ {tag} kept DB's "
+                            f"{len(existing)} images (refresh returned only "
+                            f"{len(images)})"
                         )
                         ok += 1
-                        logger.info(
-                            f"[{i}/{len(rows)}] ✓ {tag} → {len(images)} images | {url}"
-                        )
-                    except Exception as e:
-                        fail += 1
-                        logger.warning(
-                            f"[{i}/{len(rows)}] ⚠ {tag} persist failed: {e}"
-                        )
+                    else:
+                        try:
+                            _safe_exec(
+                                db_client.table("car_listings")
+                                .update({
+                                    "image_urls": images,
+                                    "last_changed_at": datetime.now(timezone.utc).isoformat(),
+                                })
+                                .eq("id", row["id"])
+                            )
+                            ok += 1
+                            logger.info(
+                                f"[{i}/{total}] ✓ {tag} → {len(images)} images | {url}"
+                            )
+                        except Exception as e:
+                            fail += 1
+                            logger.warning(
+                                f"[{i}/{total}] ⚠ {tag} persist failed: {e}"
+                            )
 
                 if consecutive_empty >= CONSECUTIVE_FAIL_LIMIT:
                     logger.error(
@@ -237,8 +214,161 @@ def main():
             except Exception:
                 pass
 
+    return {"ok": ok, "fail": fail, "attempted": ok + fail}
+
+
+def refresh_images_for_external_ids(
+    db_client, source: str, external_ids,
+) -> dict:
+    """
+    Visit each candidate listing's detail page in a fresh Playwright session
+    and refresh image_urls. Filters to rows whose stored image_urls is below
+    RICH_IMAGE_THRESHOLD — already-rich listings are skipped to bound cost.
+
+    Designed to be called from main.py post-upsert for newly-inserted
+    listings whose inline detail-enrichment didn't capture enough images
+    (cap'd by DUBIZZLE_DETAIL_BATCH_SIZE, or transient Imperva block, etc).
+    Failures are non-fatal: a row left thin gets picked up by the standalone
+    `python -m scripts.refresh_images` backfill cron.
+    """
+    ext_ids = list(external_ids) if external_ids else []
+    if not ext_ids:
+        return {"ok": 0, "fail": 0, "attempted": 0}
+
+    rows: list = []
+    for i in range(0, len(ext_ids), 100):
+        chunk = ext_ids[i : i + 100]
+        try:
+            data = _safe_exec(
+                db_client.table("car_listings")
+                .select("id, external_id, url, image_urls")
+                .eq("source", source)
+                .eq("is_active", True)
+                .in_("external_id", chunk)
+            ).data or []
+            rows.extend(data)
+        except Exception as e:
+            logger.warning(f"[{source}] image-refresh row fetch failed: {e}")
+
+    # Skip rows that already have a rich image set — the detail-enrichment
+    # phase nailed those, no need to re-visit.
+    thin_rows = [
+        r for r in rows
+        if len(r.get("image_urls") or []) < RICH_IMAGE_THRESHOLD
+    ]
+    if not thin_rows:
+        return {"ok": 0, "fail": 0, "attempted": 0}
+
     logger.info(
-        f"Done. ok={ok} fail={fail} attempted={ok + fail}"
+        f"[{source}] refresh_images: {len(thin_rows)} new listings need "
+        f"image refresh (of {len(rows)} new total; rest already rich)"
+    )
+    scraper = DubizzleScraper()
+    return _run_refresh(scraper, thin_rows, db_client)
+
+
+def _fetch_thin_rows(client, limit: int) -> list[dict]:
+    """Pull every active dubizzle row, filter Python-side to those with fewer
+    than RICH_IMAGE_THRESHOLD images, return up to `limit` of them. PostgREST
+    can't filter by array_length directly, so we page through and filter."""
+    rows: list = []
+    PAGE = 1000
+    offset = 0
+    while len(rows) < limit:
+        batch = _safe_exec(
+            client.table("car_listings")
+            .select("id, external_id, url, image_urls")
+            .eq("source", "dubizzle")
+            .eq("is_active", True)
+            .order("first_seen_at")
+            .range(offset, offset + PAGE - 1)
+        ).data or []
+        if not batch:
+            break
+        thin = [
+            r for r in batch
+            if len(r.get("image_urls") or []) < RICH_IMAGE_THRESHOLD
+        ]
+        rows.extend(thin)
+        if len(batch) < PAGE:
+            break
+        offset += len(batch)
+    return rows[:limit]
+
+
+def _fetch_cutoff_rows(client, limit: int, cutoff: str) -> list[dict]:
+    """Legacy CLI mode: rows whose last_changed_at is older than `cutoff`."""
+    rows: list = []
+    PAGE = 1000
+    offset = 0
+    while len(rows) < limit:
+        batch_size = min(PAGE, limit - len(rows))
+        batch = _safe_exec(
+            client.table("car_listings")
+            .select("id, external_id, url, last_changed_at, image_urls")
+            .eq("source", "dubizzle")
+            .eq("is_active", True)
+            .lt("last_changed_at", cutoff)
+            .order("last_changed_at")
+            .range(offset, offset + batch_size - 1)
+        ).data or []
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < batch_size:
+            break
+        offset += len(batch)
+    return rows
+
+
+def main():
+    """
+    Usage:
+        python -m scripts.refresh_images                # 500 rows by cutoff
+        python -m scripts.refresh_images 1000           # 1000 rows by cutoff
+        python -m scripts.refresh_images --thin         # all thin rows
+        python -m scripts.refresh_images --thin 200     # up to 200 thin rows
+    """
+    args = sys.argv[1:]
+    thin_only = "--thin" in args
+    args = [a for a in args if not a.startswith("--")]
+    try:
+        limit = int(args[0]) if args else (10_000 if thin_only else 500)
+    except ValueError:
+        limit = 10_000 if thin_only else 500
+
+    sb_url = os.environ.get("SUPABASE_URL")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not (sb_url and sb_key):
+        logger.error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env")
+        sys.exit(1)
+
+    client = get_client(sb_url, sb_key)
+
+    if thin_only:
+        rows = _fetch_thin_rows(client, limit)
+        logger.info(
+            f"--thin mode: {len(rows)} active dubizzle rows have fewer than "
+            f"{RICH_IMAGE_THRESHOLD} images"
+        )
+    else:
+        # Legacy time-cutoff mode (rows untouched since the last extractor fix).
+        # Cutoff: 2026-04-24 20:00 Asia/Dubai (UTC+4) == 2026-04-24 16:00 UTC.
+        cutoff = os.environ.get(
+            "DUBIZZLE_REFRESH_CUTOFF", "2026-04-24T16:00:00+00:00"
+        )
+        rows = _fetch_cutoff_rows(client, limit, cutoff)
+
+    if not rows:
+        logger.info("No active rows to refresh.")
+        return
+
+    logger.info(f"Refreshing image_urls for {len(rows)} listings")
+    scraper = DubizzleScraper()
+    summary = _run_refresh(scraper, rows, client)
+    logger.info(
+        f"Done. ok={summary['ok']} fail={summary['fail']} "
+        f"attempted={summary['attempted']}"
     )
 
 

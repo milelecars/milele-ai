@@ -262,10 +262,26 @@ def upsert_listings(client: Client, listings: list[dict]) -> dict:
             # INSERT path (above) keeps the dict intact — Postgres uses the
             # column default for missing keys, so this is safe.
             update_payload = {k: v for k, v in listing.items() if v is not None}
+
+            # Never let a shorter image_urls list overwrite a richer one.
+            # The search-page JSON-LD typically only carries the cover photo
+            # (1 image), and the detail page's extractor can drop images on
+            # lazy-load races. We always want the largest image set we've
+            # ever seen — drop the field from both the write and the diff
+            # when this run produced fewer images than the DB already has.
+            new_imgs = update_payload.get("image_urls") or []
+            old_imgs = (old_rows.get(old_id) or {}).get("image_urls") or []
+            if len(new_imgs) < len(old_imgs):
+                update_payload.pop("image_urls", None)
+
             _safe_exec(
                 client.table("car_listings").update(update_payload).eq("id", old_id)
             )
-            changed_fields = _diff(old_rows.get(old_id, {}), listing)
+            # Compute the diff against update_payload (the values actually
+            # written), not the raw listing — so fields we deliberately
+            # preserved (image_urls above, Nones in general) don't show up
+            # as phantom changes in the digest.
+            changed_fields = _diff(old_rows.get(old_id, {}), update_payload)
             if hash_changed:
                 # Real list-level diff — already counted at routing time.
                 _log_change(

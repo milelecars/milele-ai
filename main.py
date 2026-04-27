@@ -159,16 +159,36 @@ def run_source(name: str, client, dry_run: bool) -> dict:
             # existing. Trust the intermediate's `new` count when present.
             counts["new"] = inter.get("new", counts.get("new", 0))
 
-        # Inline color extraction for newly-inserted listings. Color is
-        # owned by the Groq vision extractor (scripts/extract_colors.py),
-        # not the scraper, so we trigger it right after upsert for any
-        # listing seen for the first time this run. Non-fatal: failures
-        # leave color IS NULL for the standalone backfill cron to pick up.
+        # Post-upsert enrichment for newly-inserted listings. Two passes,
+        # both non-fatal:
+        #   1. refresh_images — visit each new listing's detail page in a
+        #      fresh Playwright session and capture the full image set.
+        #      Catches new rows whose inline detail-enrichment was capped
+        #      by DUBIZZLE_DETAIL_BATCH_SIZE or returned thin due to a
+        #      lazy-load race. Only updates DB if the new set is at least
+        #      as large as what's stored (length-preservation).
+        #   2. extract_colors — run Groq vision on the first image to fill
+        #      the `color` column. Owned end-to-end by extract_colors.py;
+        #      the scraper itself never touches `color`.
+        # Failures in either step are non-fatal — the standalone backfill
+        # cron jobs (`python -m scripts.refresh_images`,
+        # `python -m scripts.extract_colors`) catch any stragglers.
         new_ext_ids = (
             (inter.get("new_external_ids") or set())
             | (upsert_counts.get("new_external_ids") or set())
         )
         if new_ext_ids:
+            try:
+                from scripts.refresh_images import refresh_images_for_external_ids
+                summary = refresh_images_for_external_ids(client, name, new_ext_ids)
+                logger.info(
+                    f"[{name}] inline image refresh: "
+                    f"ok={summary['ok']} fail={summary['fail']} "
+                    f"attempted={summary['attempted']} of {len(new_ext_ids)} new"
+                )
+            except Exception as e:
+                logger.warning(f"[{name}] inline image refresh failed: {e}")
+
             try:
                 from scripts.extract_colors import extract_colors_for_external_ids
                 summary = extract_colors_for_external_ids(client, name, new_ext_ids)
