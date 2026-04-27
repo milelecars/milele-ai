@@ -259,7 +259,7 @@
   }
   .pagination-info {
     font-size: 12px;
-    color: var(--muted);
+    color: white;
     white-space: nowrap;
   }
   .pagination-controls {
@@ -569,7 +569,6 @@
     <div class="actions">
       <button id="btn-search" class="primary">Search</button>
       <button id="btn-reset" class="secondary">Reset</button>
-      <span id="status" class="status"></span>
     </div>
   </section>
 
@@ -873,7 +872,6 @@ function renderCard(row) {
          aria-label="${escapeHtml(title || 'Listing')}">
       <div class="card-carousel">
         <div class="card-track">${slides}</div>
-        ${row.condition === "new" ? '<span class="card-tag">NEW</span>' : ""}
         ${row.warranty === true ? '<span class="card-tag warranty">Warranty</span>' : ""}
         ${navButtons}
       </div>
