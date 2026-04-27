@@ -42,11 +42,18 @@ from utils.base_scraper import BaseScraper
 logger = logging.getLogger(__name__)
 
 
-# Dubizzle caps HTTP pagination at ~36 pages (~936 listings) per search,
-# regardless of the result-count shown in the UI. We split by price into
-# non-overlapping buckets so each bucket stays under the cap, then union
-# the results. Buckets are inclusive on both bounds; 25000 lands in bucket 1,
-# 25001 in bucket 2, etc.
+# Dubizzle caps HTTP pagination per search (observed cap is around 500-600
+# reachable listings — well below the UI-reported result count for dense
+# price bands). When the cap is hit, pagination starts returning duplicates
+# of earlier pages and the all-duplicates heuristic ends the segment early.
+# We split by price into non-overlapping buckets so each bucket stays under
+# the cap, then union the results. Buckets are inclusive on both bounds;
+# 25000 lands in bucket 1, 25001 in bucket 2, etc.
+#
+# Sizing notes (observed 2026-04-27): sg4 75 001-100 000 had 975 listings
+# in the UI but only ~490 were reachable before the cap, so it's split in
+# two. If any segment regularly ends with `all-duplicates` after a full
+# prior page, that's the cap signature — split it further.
 _UAE_NEW_CARS = "https://uae.dubizzle.com/motors/new-cars/"
 _YEAR_RANGE = "year__gte=2015&year__lte=2027"
 
@@ -54,7 +61,8 @@ DEFAULT_SEARCH_SEGMENTS: tuple[str, ...] = (
     f"{_UAE_NEW_CARS}?price__gte=1&price__lte=25000&{_YEAR_RANGE}",
     f"{_UAE_NEW_CARS}?price__gte=25001&price__lte=50000&{_YEAR_RANGE}",
     f"{_UAE_NEW_CARS}?price__gte=50001&price__lte=75000&{_YEAR_RANGE}",
-    f"{_UAE_NEW_CARS}?price__gte=75001&price__lte=100000&{_YEAR_RANGE}",
+    f"{_UAE_NEW_CARS}?price__gte=75001&price__lte=87500&{_YEAR_RANGE}",
+    f"{_UAE_NEW_CARS}?price__gte=87501&price__lte=100000&{_YEAR_RANGE}",
 )
 
 
@@ -501,6 +509,7 @@ class DubizzleScraper(BaseScraper):
                         continue
 
                     seg_new = 0
+                    prev_page_items = 0
                     for page_num in range(1, max_pages + 1):
                         if page_num > 1:
                             next_url = f"{search_url}&page={page_num}"
@@ -572,10 +581,23 @@ class DubizzleScraper(BaseScraper):
                             f"[dubizzle] {seg_tag} page {page_num}: {len(items)} items"
                         )
 
+                        # Cap signature: a full prior page followed by an
+                        # empty / mostly-duplicate page means Dubizzle stopped
+                        # serving fresh results before the segment was truly
+                        # exhausted (vs. a natural taper from full → 25 → 1).
+                        # Surfaces when a price bucket outgrew its size.
+                        cap_signature = (
+                            prev_page_items >= 20 and len(items) <= 5
+                        )
+
                         if not items:
-                            logger.info(
+                            log = logger.warning if cap_signature else logger.info
+                            log(
                                 f"[dubizzle] {seg_tag} page {page_num} empty — "
                                 f"end of segment ({seg_new} new in segment)"
+                                + (" — possible pagination cap hit; consider"
+                                   " splitting this price bucket"
+                                   if cap_signature else "")
                             )
                             break
 
@@ -593,11 +615,17 @@ class DubizzleScraper(BaseScraper):
                             seg_new += 1
 
                         if new_on_page == 0:
-                            logger.info(
+                            log = logger.warning if cap_signature else logger.info
+                            log(
                                 f"[dubizzle] {seg_tag} page {page_num} all-duplicates — "
                                 f"end of segment ({seg_new} new in segment)"
+                                + (" — possible pagination cap hit; consider"
+                                   " splitting this price bucket"
+                                   if cap_signature else "")
                             )
                             break
+
+                        prev_page_items = len(items)
                     logger.info(
                         f"[dubizzle] {seg_tag} done: +{seg_new} listings "
                         f"(total unique so far: {len(results)})"
