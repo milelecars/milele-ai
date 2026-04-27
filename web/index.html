@@ -779,6 +779,78 @@ function readFilters() {
   };
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// URL state — persists filters + page in the query string so refresh,
+// share, and bookmark all "just work". Source of truth lives in the URL,
+// not in JS variables.
+// ──────────────────────────────────────────────────────────────────────
+
+// readFilters() output key → form element id. Used both to write the URL
+// (skip empty values) and to restore the form on page load.
+const FILTER_KEY_TO_INPUT = {
+  make:        "f-make",
+  model:       "f-model",
+  year_min:    "f-year-min",
+  year_max:    "f-year-max",
+  price_min:   "f-price-min",
+  price_max:   "f-price-max",
+  mileage_max: "f-mileage-max",
+  body_type:   "f-body",
+  fuel_type:   "f-fuel",
+  color:       "f-color",
+  emirate:     "f-emirate",
+  warranty:    "f-warranty",
+  condition:   "f-condition",
+  sort:        "f-sort",
+};
+
+const DEFAULT_SORT = "first_seen_at.desc";
+
+function writeUrlState(filters, page) {
+  const params = new URLSearchParams();
+  if (filters) {
+    for (const [k, v] of Object.entries(filters)) {
+      if (v == null || v === "") continue;
+      // Don't bloat the URL with the default sort.
+      if (k === "sort" && v === DEFAULT_SORT) continue;
+      params.set(k, String(v));
+    }
+  }
+  if (page && page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  // replaceState (not pushState) so the browser back button leaves the app
+  // instead of stepping back through every search/page-change. Refresh,
+  // copy-link-and-share, and bookmark are what we care about here.
+  // Wrapped in try/catch because some hosting modes (file://, sandboxed
+  // iframes, certain CSPs) raise SecurityError on history.* — we don't
+  // want a URL-persistence error to break the actual search.
+  try {
+    history.replaceState(null, "", qs ? "?" + qs : window.location.pathname);
+  } catch (e) {
+    console.warn("URL state persistence skipped:", e.message);
+  }
+}
+
+function readUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const filters = {};
+  for (const [k, v] of params) {
+    if (k === "page") continue;
+    filters[k] = v;
+  }
+  const page = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+  return { filters, page };
+}
+
+function applyFiltersToForm(filters) {
+  for (const [k, id] of Object.entries(FILTER_KEY_TO_INPUT)) {
+    const v = filters[k];
+    const el = $(id);
+    if (!el) continue;
+    el.value = (v == null || v === "") ? "" : v;
+  }
+}
+
 // Columns fetched for every search — includes everything the modal shows.
 const SEARCH_SELECT =
   "external_id,url,make,model,trim,variant,year,body_type,fuel_type," +
@@ -899,6 +971,10 @@ async function doSearch(page = 1, filters = null) {
   const f = filters || readFilters();
   CURRENT_PAGE = page;
   LAST_FILTERS = f;
+  // Persist current filters + page to URL so refresh/share/bookmark restores
+  // exactly this view. Done before the network call so a slow query still
+  // leaves the user with a reload-safe URL if they bail.
+  writeUrlState(f, page);
 
   try {
     const { data, count, error } = await buildQuery(f, page);
@@ -1147,12 +1223,14 @@ document.addEventListener("keydown", (e) => {
 function resetFilters() {
   document.querySelectorAll(".filter-grid input, .filter-grid select")
     .forEach(el => { el.value = ""; });
-  $("f-sort").value = "first_seen_at.desc";
+  $("f-sort").value = DEFAULT_SORT;
   $("results").innerHTML = '<div class="hint">Set filters and hit <strong>Search</strong> to see matches.</div>';
   setStatus("");
   LAST_FILTERS = null;
   CURRENT_PAGE = 1;
   LAST_TOTAL = 0;
+  // Drop the query string so a refresh after reset starts from a clean slate.
+  try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
 }
 
 // Pagination — uses the cached filter set captured by the last doSearch()
@@ -1195,8 +1273,24 @@ document.querySelector(".filters").addEventListener("keydown", (e) => {
   if (e.key === "Enter") doSearch(1);
 });
 
-// Prefill every filter's dropdown on load (single query to the DB)
+// Prefill every filter's dropdown on load (single query to the DB).
+// fillSelect preserves any value the form already has, so we restore the
+// URL state into the form *first* and let loadFilterOptions paint dropdowns
+// around those values without clobbering them.
+const __initialState = readUrlState();
+const __hasInitialState =
+  Object.keys(__initialState.filters).length > 0 || __initialState.page > 1;
+if (__hasInitialState) {
+  applyFiltersToForm(__initialState.filters);
+  refreshModelDatalist();
+}
 loadFilterOptions();
+// Auto-run the search if we restored any state from the URL — this is the
+// "page reload keeps the view" behaviour. Filter dropdowns may still be
+// loading; that's fine, the search reads form values, not dropdown options.
+if (__hasInitialState) {
+  doSearch(__initialState.page);
+}
 </script>
 </body>
 </html>
