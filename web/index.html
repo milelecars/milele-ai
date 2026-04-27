@@ -568,6 +568,7 @@
     <div class="actions">
       <button id="btn-search" class="primary">Search</button>
       <button id="btn-reset" class="secondary">Reset</button>
+      <span id="status" class="status"></span>
     </div>
   </section>
 
@@ -653,7 +654,11 @@ if (SUPABASE_URL.startsWith("YOUR_") || SUPABASE_ANON_KEY.startsWith("YOUR_")) {
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const $ = (id) => document.getElementById(id);
-const setStatus = (msg) => { $("status").textContent = msg; };
+const setStatus = (msg) => {
+  // Defensive: a missing #status element shouldn't kill searches.
+  const el = $("status");
+  if (el) el.textContent = msg;
+};
 
 // Populated by loadFilterOptions(). Used to narrow the model datalist to
 // just the models that exist for the currently-selected make.
