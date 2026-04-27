@@ -412,7 +412,6 @@
 
 <header>
   <h1>Milele · Car Search</h1>
-  <p>Filter the live Dubizzle inventory in Supabase</p>
 </header>
 
 <main>
@@ -591,6 +590,11 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
 const setStatus = (msg) => { $("status").textContent = msg; };
 
+// Populated by loadFilterOptions(). Used to narrow the model datalist to
+// just the models that exist for the currently-selected make.
+let MODELS_BY_MAKE = new Map();   // lowercase make → sorted [models]
+let ALL_MODELS = [];               // sorted, used when no make is selected
+
 // Single cheap query on page load → populate every filter's dropdown
 // with the distinct values that actually exist in the DB. Fires once; the
 // actual search still only runs when the user clicks Search.
@@ -613,7 +617,26 @@ async function loadFilterOptions() {
 
     // Free-text datalists — user can still type anything, these just suggest.
     fillDatalist("makes-list",  uniqSorted("make"));
-    fillDatalist("models-list", uniqSorted("model"));
+
+    // Build a make→models map so the model dropdown narrows to just the
+    // models that actually exist under the selected make.
+    const byMake = new Map();
+    const allModels = new Set();
+    for (const r of rows) {
+      const md = String(r.model ?? "").trim();
+      if (!md) continue;
+      allModels.add(md);
+      const mk = String(r.make ?? "").trim().toLowerCase();
+      if (!mk) continue;
+      if (!byMake.has(mk)) byMake.set(mk, new Set());
+      byMake.get(mk).add(md);
+    }
+    MODELS_BY_MAKE = new Map();
+    for (const [k, set] of byMake) {
+      MODELS_BY_MAKE.set(k, [...set].sort((a, b) => a.localeCompare(b)));
+    }
+    ALL_MODELS = [...allModels].sort((a, b) => a.localeCompare(b));
+    refreshModelDatalist();
     // Colour filter matches across color + interior_color in the search;
     // reflect that in the dropdown by merging both.
     const colors = [...new Set([
@@ -630,6 +653,26 @@ async function loadFilterOptions() {
   } catch (e) {
     console.warn("filter prefill failed (check RLS):", e.message);
   }
+}
+
+// Narrow the model datalist to the chosen make. Empty make → show all.
+// Exact-match lookup first; if the user is mid-typing (e.g. "toy"), fall
+// back to a substring match across all makes so suggestions stay useful.
+function refreshModelDatalist() {
+  const makeVal = $("f-make").value.trim().toLowerCase();
+  if (!makeVal) { fillDatalist("models-list", ALL_MODELS); return; }
+  if (MODELS_BY_MAKE.has(makeVal)) {
+    fillDatalist("models-list", MODELS_BY_MAKE.get(makeVal));
+    return;
+  }
+  const merged = new Set();
+  for (const [k, models] of MODELS_BY_MAKE) {
+    if (k.includes(makeVal)) for (const m of models) merged.add(m);
+  }
+  fillDatalist(
+    "models-list",
+    merged.size ? [...merged].sort((a, b) => a.localeCompare(b)) : ALL_MODELS,
+  );
 }
 
 function fillDatalist(id, opts) {
@@ -1011,6 +1054,22 @@ function resetFilters() {
 
 $("btn-search").addEventListener("click", doSearch);
 $("btn-reset").addEventListener("click", resetFilters);
+
+// Refilter the model datalist as the user types/picks a make. Also clear
+// the model field when its value isn't valid for the new make — keeps
+// stale "BMW + Camry" combos from silently returning 0 matches.
+$("f-make").addEventListener("input", () => {
+  refreshModelDatalist();
+  const modelEl = $("f-model");
+  const md = modelEl.value.trim().toLowerCase();
+  const makeVal = $("f-make").value.trim().toLowerCase();
+  if (md && makeVal && MODELS_BY_MAKE.has(makeVal)) {
+    const allowed = new Set(
+      MODELS_BY_MAKE.get(makeVal).map(s => s.toLowerCase())
+    );
+    if (!allowed.has(md)) modelEl.value = "";
+  }
+});
 
 // Allow Enter key anywhere in the form to submit
 document.querySelector(".filters").addEventListener("keydown", (e) => {
